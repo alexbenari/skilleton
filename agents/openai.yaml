@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Library Manager"
+  short_description: "Manage local project skill links."
+  default_prompt: "Manage my local skill library and project skill links."

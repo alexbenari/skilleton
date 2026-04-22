@@ -1,0 +1,13 @@
+{
+  "name": "skill-library-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron app for managing a local Codex skill library.",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^37.2.0"
+  }
+}
