@@ -1,0 +1,4 @@
+interface:
+  display_name: "jq JSON Processing"
+  short_description: "Use jq to query and reshape JSON on Windows"
+  default_prompt: "Use jq to query, filter, aggregate, or reshape this JSON and return only the narrowed result."
