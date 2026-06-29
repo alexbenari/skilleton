@@ -201,9 +201,9 @@ class SkillManagerHandler(BaseHTTPRequestHandler):
                 result = enable_skill(skill, project=payload.get("project") or None, force=force)
                 state = status_snapshot(payload.get("project") or None)
                 message = (
-                    f"Skill already enabled: {result['skill']}"
-                    if result["status"] == "already-enabled"
-                    else f"Enabled {result['skill']} in {result['project_root']}"
+                    f"Project copy differs from the library for {result['skill']}"
+                    if result["status"] == "blocked-modified"
+                    else f"Updated {result['skill']} in {result['project_root']}"
                 )
                 self._respond_json(
                     HTTPStatus.OK, {"ok": True, "message": message, "state": state}
@@ -237,9 +237,9 @@ class SkillManagerHandler(BaseHTTPRequestHandler):
                 result = install_global_skill(skill, force=force)
                 state = status_snapshot(payload.get("project") or None)
                 message = (
-                    f"Skill already installed globally: {result['skill']}"
-                    if result["status"] == "already-installed"
-                    else f"Installed {result['skill']} globally in {result['global_root']}"
+                    f"Global copy differs from the library for {result['skill']}"
+                    if result["status"] == "blocked-modified"
+                    else f"Updated {result['skill']} globally in {result['global_root']}"
                 )
                 self._respond_json(
                     HTTPStatus.OK, {"ok": True, "message": message, "state": state}

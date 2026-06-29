@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage a local skill library and project-level skill links."""
+"""Manage a local skill library and project-level copied skill installs."""
 
 from __future__ import annotations
 
@@ -74,11 +74,14 @@ def _cmd_enumerate(args: argparse.Namespace) -> int:
 
 def _cmd_enable(args: argparse.Namespace) -> int:
     result = enable_skill(args.skill, project=args.project, force=args.force)
-    if result["status"] == "already-enabled":
-        print(f"Skill already enabled: {result['skill']}")
-        return 0
-    print(f"Enabled skill `{result['skill']}` for project: {result['project_root']}")
-    print(f"Linked {result['entry']} -> {result['path']}")
+    if result["status"] == "blocked-modified":
+        print(
+            f"Skill copy differs from the library: {result['entry']}. "
+            "Re-run with `--force` to replace it."
+        )
+        return 1
+    print(f"Updated skill `{result['skill']}` for project: {result['project_root']}")
+    print(f"Copied files into: {result['entry']}")
     return 0
 
 
@@ -106,11 +109,14 @@ def _cmd_list_enabled(args: argparse.Namespace) -> int:
 
 def _cmd_install_global(args: argparse.Namespace) -> int:
     result = install_global_skill(args.skill, force=args.force)
-    if result["status"] == "already-installed":
-        print(f"Skill already installed globally: {result['skill']}")
-        return 0
-    print(f"Installed skill `{result['skill']}` globally in: {result['global_root']}")
-    print(f"Linked {result['entry']} -> {result['path']}")
+    if result["status"] == "blocked-modified":
+        print(
+            f"Global skill copy differs from the library: {result['entry']}. "
+            "Re-run with `--force` to replace it."
+        )
+        return 1
+    print(f"Updated global skill `{result['skill']}` in: {result['global_root']}")
+    print(f"Copied files into: {result['entry']}")
     return 0
 
 
@@ -143,7 +149,7 @@ def _cmd_serve_ui(args: argparse.Namespace) -> int:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Manage a local skill library and per-project skill links."
+        description="Manage a local skill library and per-project copied skill installs."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -183,7 +189,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     enable_parser.set_defaults(func=_cmd_enable)
 
-    disable_parser = subparsers.add_parser("disable", help="Disable one project skill link.")
+    disable_parser = subparsers.add_parser("disable", help="Remove one copied project skill.")
     disable_parser.add_argument("--skill", required=True, help="Skill name (folder basename).")
     disable_parser.add_argument(
         "--project",
@@ -215,7 +221,7 @@ def _build_parser() -> argparse.ArgumentParser:
     install_global_parser.set_defaults(func=_cmd_install_global)
 
     uninstall_global_parser = subparsers.add_parser(
-        "uninstall-global", help="Remove one global skill link."
+        "uninstall-global", help="Remove one copied global skill."
     )
     uninstall_global_parser.add_argument(
         "--skill", required=True, help="Skill name (folder basename)."

@@ -10,12 +10,27 @@ import os
 import re
 import shutil
 import stat
-import subprocess
 
 CONFIG_FILENAME = "local-skill-library.json"
+LIBRARY_CONFIG_FILENAME = ".skill-library-manager.json"
 SKILL_FILENAME = "SKILL.md"
 SCHEMA_VERSION = 1
 DEFAULT_LINK_MODE = "junction"
+PACKAGED_SKILL_LOCATIONS = [
+    (".agents", "skills"),
+    ("plugin", "skills"),
+    (".claude", "skills"),
+    (".cursor", "skills"),
+    (".gemini", "skills"),
+    (".github", "skills"),
+    (".kiro", "skills"),
+    (".opencode", "skills"),
+    (".pi", "skills"),
+    (".qoder", "skills"),
+    (".rovodev", "skills"),
+    (".trae", "skills"),
+    (".trae-cn", "skills"),
+]
 
 
 @dataclass
@@ -35,6 +50,10 @@ def codex_home() -> str:
 
 def config_path() -> str:
     return os.path.join(codex_home(), CONFIG_FILENAME)
+
+
+def library_config_path(library_root: str) -> str:
+    return os.path.join(library_root, LIBRARY_CONFIG_FILENAME)
 
 
 def _norm(path: str) -> str:
@@ -89,61 +108,96 @@ def _ensure_parent_dir(path: str) -> None:
         os.makedirs(parent, exist_ok=True)
 
 
-def _read_config() -> dict[str, object]:
-    cfg_path = config_path()
-    if not os.path.isfile(cfg_path):
-        raise SkillLibraryError(
-            f"Config file not found: {cfg_path}. Run `set-root --path <absolute_path>` first."
-        )
+def _read_json_file(path: str) -> dict[str, object]:
     try:
-        data = json.load(open(cfg_path, "r", encoding="utf-8"))
+        data = json.load(open(path, "r", encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise SkillLibraryError(f"Failed to read config {cfg_path}: {exc}") from exc
+        raise SkillLibraryError(f"Failed to read config {path}: {exc}") from exc
     if not isinstance(data, dict):
-        raise SkillLibraryError(f"Invalid config format in {cfg_path}.")
-    root = data.get("library_root")
-    if not isinstance(root, str) or not root.strip():
-        raise SkillLibraryError(f"Invalid or missing `library_root` in {cfg_path}.")
-    link_mode = data.get("link_mode")
-    if link_mode != DEFAULT_LINK_MODE:
+        raise SkillLibraryError(f"Invalid config format in {path}.")
+    return data
+
+
+def _write_json_file(path: str, payload: dict[str, object]) -> None:
+    _ensure_parent_dir(path)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        os.replace(tmp, path)
+    except OSError as exc:
+        raise SkillLibraryError(f"Failed to write config {path}: {exc}") from exc
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def _read_config() -> dict[str, object]:
+    pointer_path = config_path()
+    if not os.path.isfile(pointer_path):
         raise SkillLibraryError(
-            f"Invalid or unsupported `link_mode` in {cfg_path}. Expected `{DEFAULT_LINK_MODE}`."
+            f"Config file not found: {pointer_path}. Run `set-root --path <absolute_path>` first."
         )
+    pointer_data = _read_json_file(pointer_path)
+    root = pointer_data.get("library_root")
+    if not isinstance(root, str) or not root.strip():
+        raise SkillLibraryError(f"Invalid or missing `library_root` in {pointer_path}.")
     normalized_root = os.path.abspath(os.path.expanduser(root))
     if not os.path.isdir(normalized_root):
         raise SkillLibraryError(
             f"Configured library root does not exist: {normalized_root}. "
             "Run `set-root --path <absolute_path>`."
         )
+    cfg_path = library_config_path(normalized_root)
+    if os.path.isfile(cfg_path):
+        data = _read_json_file(cfg_path)
+    else:
+        data = {
+            "schema_version": SCHEMA_VERSION,
+            "link_mode": pointer_data.get("link_mode", DEFAULT_LINK_MODE),
+        }
+        _write_library_config(normalized_root, data)
+    link_mode = data.get("link_mode")
+    if link_mode != DEFAULT_LINK_MODE:
+        raise SkillLibraryError(
+            f"Invalid or unsupported `link_mode` in {cfg_path}. Expected `{DEFAULT_LINK_MODE}`."
+        )
     data["library_root"] = normalized_root
+    data["config_path"] = cfg_path
+    data["pointer_path"] = pointer_path
     return data
 
 
-def _write_config(root_path: str) -> str:
-    cfg_path = config_path()
+def _write_library_pointer(root_path: str) -> str:
+    pointer_path = config_path()
     payload = {
         "schema_version": SCHEMA_VERSION,
         "library_root": root_path,
+    }
+    _write_json_file(pointer_path, payload)
+    return pointer_path
+
+
+def _write_library_config(root_path: str, overrides: dict[str, object] | None = None) -> str:
+    cfg_path = library_config_path(root_path)
+    payload = {
+        "schema_version": SCHEMA_VERSION,
         "link_mode": DEFAULT_LINK_MODE,
     }
-    _ensure_parent_dir(cfg_path)
-    tmp = cfg_path + ".tmp"
-    try:
-        with open(tmp, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        os.replace(tmp, cfg_path)
-    except OSError as exc:
-        raise SkillLibraryError(f"Failed to write config {cfg_path}: {exc}") from exc
-    finally:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
+    if overrides:
+        payload.update(overrides)
+    _write_json_file(cfg_path, payload)
     return cfg_path
 
 
+def _write_config(root_path: str) -> str:
+    _write_library_pointer(root_path)
+    return _write_library_config(root_path)
+
+
 def _discover_skills(root: str) -> tuple[dict[str, SkillRecord], dict[str, list[str]]]:
-    found: dict[str, SkillRecord] = {}
-    collisions: dict[str, list[str]] = {}
+    candidates_by_name: dict[str, list[SkillRecord]] = {}
     for current_root, dirs, files in os.walk(root):
         dirs.sort()
         files.sort()
@@ -153,10 +207,57 @@ def _discover_skills(root: str) -> tuple[dict[str, SkillRecord], dict[str, list[
         skill_md_path = os.path.join(current_root, SKILL_FILENAME)
         desc = _description_from_skill_md(skill_md_path)
         record = SkillRecord(name=name, path=current_root, description=desc)
-        if name in found:
-            collisions.setdefault(name, [found[name].path]).append(current_root)
+        candidates_by_name.setdefault(name, []).append(record)
+    return _resolve_skill_candidates(root, candidates_by_name)
+
+
+def _packaged_skill_info(root: str, skill_path: str, skill_name: str) -> tuple[int, str] | None:
+    relative_path = os.path.relpath(skill_path, root)
+    if relative_path == os.curdir or relative_path.startswith(os.pardir + os.sep):
+        return None
+    parts = relative_path.split(os.sep)
+    if not parts or parts[-1] != skill_name:
+        return None
+    for priority, location in enumerate(PACKAGED_SKILL_LOCATIONS):
+        location_start = len(parts) - len(location) - 1
+        if location_start < 0:
+            continue
+        if tuple(parts[location_start : location_start + len(location)]) == location:
+            source_root = os.path.abspath(os.path.join(root, *parts[:location_start]))
+            return priority, source_root
+    return None
+
+
+def _collapse_packaged_variants(
+    root: str, name: str, candidates: list[SkillRecord]
+) -> SkillRecord | None:
+    variants: list[tuple[SkillRecord, tuple[int, str]]] = []
+    for candidate in candidates:
+        info = _packaged_skill_info(root, candidate.path, name)
+        if info is None:
+            return None
+        variants.append((candidate, info))
+    source_roots = {_norm(info[1]) for _, info in variants}
+    if len(source_roots) != 1:
+        return None
+    variants.sort(key=lambda variant: (variant[1][0], variant[0].path))
+    return variants[0][0]
+
+
+def _resolve_skill_candidates(
+    root: str, candidates_by_name: dict[str, list[SkillRecord]]
+) -> tuple[dict[str, SkillRecord], dict[str, list[str]]]:
+    found: dict[str, SkillRecord] = {}
+    collisions: dict[str, list[str]] = {}
+    for name, candidates in candidates_by_name.items():
+        if len(candidates) == 1:
+            found[name] = candidates[0]
+            continue
+        collapsed = _collapse_packaged_variants(root, name, candidates)
+        if collapsed is not None:
+            found[name] = collapsed
         else:
-            found[name] = record
+            collisions[name] = [candidate.path for candidate in candidates]
     return found, collisions
 
 
@@ -190,16 +291,90 @@ def global_skill_path(skill_name: str) -> str:
     return os.path.join(global_skills_root(), skill_name)
 
 
-def _entry_state(entry_path: str, skill_path: str) -> tuple[bool, bool]:
-    if not os.path.lexists(entry_path):
-        return False, False
+def _list_relative_entries(root_path: str) -> list[tuple[str, str, str | None]]:
+    entries: list[tuple[str, str, str | None]] = []
+    for current_root, dirs, files in os.walk(root_path, topdown=True, followlinks=False):
+        dirs.sort()
+        files.sort()
+        for dir_name in dirs:
+            absolute_path = os.path.join(current_root, dir_name)
+            relative_path = os.path.relpath(absolute_path, root_path)
+            if os.path.islink(absolute_path):
+                entries.append((relative_path, "symlink", os.readlink(absolute_path)))
+            else:
+                entries.append((relative_path, "directory", None))
+        for file_name in files:
+            absolute_path = os.path.join(current_root, file_name)
+            relative_path = os.path.relpath(absolute_path, root_path)
+            if os.path.islink(absolute_path):
+                entries.append((relative_path, "symlink", os.readlink(absolute_path)))
+            else:
+                entries.append((relative_path, "file", None))
+    entries.sort(key=lambda item: item[0])
+    return entries
+
+
+def _compare_directory_trees(source_path: str, target_path: str) -> bool:
+    source_entries = _list_relative_entries(source_path)
+    target_entries = _list_relative_entries(target_path)
+    if len(source_entries) != len(target_entries):
+        return False
+    for source_entry, target_entry in zip(source_entries, target_entries):
+        if source_entry != target_entry:
+            return False
+        relative_path, entry_kind, _ = source_entry
+        if entry_kind != "file":
+            continue
+        with open(os.path.join(source_path, relative_path), "rb") as source_handle:
+            source_bytes = source_handle.read()
+        with open(os.path.join(target_path, relative_path), "rb") as target_handle:
+            target_bytes = target_handle.read()
+        if source_bytes != target_bytes:
+            return False
+    return True
+
+
+def _is_installed_state(state: str) -> bool:
+    return state in {"copied-match", "copied-modified", "linked-match"}
+
+
+def _is_conflict_state(state: str) -> bool:
+    return state == "foreign-conflict"
+
+
+def _copy_tree(source_path: str, target_path: str) -> None:
+    if os.path.lexists(target_path):
+        _remove_path(target_path)
+    _ensure_parent_dir(target_path)
     try:
-        equivalent = _norm(entry_path) == _norm(skill_path)
-    except OSError:
-        equivalent = False
-    if equivalent:
-        return True, False
-    return False, True
+        shutil.copytree(source_path, target_path, symlinks=True)
+    except OSError as exc:
+        raise SkillLibraryError(
+            f"Failed to copy {source_path} to {target_path}: {exc}"
+        ) from exc
+
+
+def _install_state(entry_path: str, skill_path: str) -> str:
+    if not os.path.lexists(entry_path):
+        return "missing"
+    try:
+        if os.path.islink(entry_path):
+            try:
+                equivalent = _norm(entry_path) == _norm(skill_path)
+            except OSError:
+                equivalent = False
+            return "linked-match" if equivalent else "foreign-conflict"
+        if not os.path.isdir(entry_path):
+            return "foreign-conflict"
+        if not os.path.isfile(os.path.join(entry_path, SKILL_FILENAME)):
+            return "foreign-conflict"
+        return (
+            "copied-match"
+            if _compare_directory_trees(skill_path, entry_path)
+            else "copied-modified"
+        )
+    except OSError as exc:
+        raise SkillLibraryError(f"Failed to inspect {entry_path}: {exc}") from exc
 
 
 def _remove_path(path: str) -> None:
@@ -223,26 +398,6 @@ def _remove_path(path: str) -> None:
         os.unlink(path)
     except OSError as exc:
         raise SkillLibraryError(f"Failed to remove {path}: {exc}") from exc
-
-
-def _create_junction(link_path: str, target_path: str) -> None:
-    _ensure_parent_dir(link_path)
-    if os.name == "nt":
-        cmd = ["cmd", "/c", "mklink", "/J", link_path, target_path]
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        if result.returncode != 0:
-            msg = result.stderr.strip() or result.stdout.strip() or "mklink failed"
-            raise SkillLibraryError(f"Failed to create junction {link_path}: {msg}")
-        return
-    try:
-        os.symlink(target_path, link_path, target_is_directory=True)
-    except OSError as exc:
-        raise SkillLibraryError(f"Failed to create symlink {link_path}: {exc}") from exc
 
 
 def _closest_skill_names(name: str, choices: list[str]) -> list[str]:
@@ -287,10 +442,12 @@ def _apply_scope_state(
     conflict_key: str,
     entry_key: str,
     target_key: str,
+    state_key: str,
 ) -> None:
-    installed, conflict = _entry_state(entry_path, skill_path)
-    row[installed_key] = installed
-    if conflict:
+    state = _install_state(entry_path, skill_path)
+    row[state_key] = state
+    row[installed_key] = _is_installed_state(state)
+    if _is_conflict_state(state):
         row[conflict_key] = True
         row[entry_key] = entry_path
         try:
@@ -316,6 +473,7 @@ def enumerate_rows(project_root: str, skills: dict[str, SkillRecord]) -> list[di
             "conflict",
             "project_entry",
             "project_entry_target",
+            "project_install_state",
         )
         _apply_scope_state(
             row,
@@ -325,6 +483,7 @@ def enumerate_rows(project_root: str, skills: dict[str, SkillRecord]) -> list[di
             "global_conflict",
             "global_entry",
             "global_entry_target",
+            "global_install_state",
         )
         rows.append(row)
     return rows
@@ -353,8 +512,8 @@ def delete_library_skill(skill_name: str, project: str | None = None) -> dict[st
     project_root = resolve_project_root(project)
     repo_entry = project_skill_path(project_root, skill.name)
     global_entry = global_skill_path(skill.name)
-    repo_installed, _ = _entry_state(repo_entry, skill.path)
-    global_installed, _ = _entry_state(global_entry, skill.path)
+    repo_installed = _is_installed_state(_install_state(repo_entry, skill.path))
+    global_installed = _is_installed_state(_install_state(global_entry, skill.path))
     if repo_installed:
         raise SkillLibraryError(
             f"Skill `{skill.name}` is enabled in the current project. Disable it before deleting it from the library."
@@ -399,7 +558,10 @@ def read_skill_markdown(skill_name: str) -> dict[str, str]:
 
 
 def enumerate_skills(project: str | None = None) -> dict[str, object]:
-    skills, library_root = load_skills_from_config()
+    cfg = _read_config()
+    library_root = str(cfg["library_root"])
+    skills, collisions = _discover_skills(library_root)
+    _fail_on_collisions(collisions)
     project_root = resolve_project_root(project)
     rows = enumerate_rows(project_root, skills)
     enabled = [row for row in rows if bool(row.get("installed"))]
@@ -407,7 +569,8 @@ def enumerate_skills(project: str | None = None) -> dict[str, object]:
     global_enabled = [row for row in rows if bool(row.get("global_installed"))]
     global_conflicts = [row for row in rows if bool(row.get("global_conflict"))]
     return {
-        "config_path": config_path(),
+        "config_path": str(cfg["config_path"]),
+        "pointer_path": str(cfg["pointer_path"]),
         "codex_home": codex_home(),
         "global_root": global_skills_root(),
         "library_root": library_root,
@@ -427,35 +590,49 @@ def enable_skill(
     skill = _get_skill_or_error(skill_name, skills)
     project_root = resolve_project_root(project)
     entry = project_skill_path(project_root, skill.name)
-    installed, conflict = _entry_state(entry, skill.path)
-    if installed:
+    current = _install_state(entry, skill.path)
+    if current == "missing":
+        _copy_tree(skill.path, entry)
         return {
             "skill": skill.name,
             "project_root": project_root,
             "entry": entry,
             "path": skill.path,
-            "status": "already-enabled",
+            "status": "enabled",
         }
-    if conflict and not force:
-        raise SkillLibraryError(
-            f"Conflicting entry exists at {entry}. Use `--force` to replace it."
-        )
-    if conflict and force:
-        _remove_path(entry)
-    elif os.path.lexists(entry):
-        if force:
-            _remove_path(entry)
-        else:
-            raise SkillLibraryError(
-                f"Path already exists at {entry}. Use `--force` to replace it."
-            )
-    _create_junction(entry, skill.path)
+    if current == "linked-match":
+        _copy_tree(skill.path, entry)
+        return {
+            "skill": skill.name,
+            "project_root": project_root,
+            "entry": entry,
+            "path": skill.path,
+            "status": "migrated-link",
+        }
+    if current == "copied-match":
+        _copy_tree(skill.path, entry)
+        return {
+            "skill": skill.name,
+            "project_root": project_root,
+            "entry": entry,
+            "path": skill.path,
+            "status": "refreshed",
+        }
+    if current in {"copied-modified", "foreign-conflict"} and not force:
+        return {
+            "skill": skill.name,
+            "project_root": project_root,
+            "entry": entry,
+            "path": skill.path,
+            "status": "blocked-modified",
+        }
+    _copy_tree(skill.path, entry)
     return {
         "skill": skill.name,
         "project_root": project_root,
         "entry": entry,
         "path": skill.path,
-        "status": "enabled",
+        "status": "replaced",
     }
 
 
@@ -483,35 +660,49 @@ def install_global_skill(skill_name: str, force: bool = False) -> dict[str, str]
     skills, _ = load_skills_from_config()
     skill = _get_skill_or_error(skill_name, skills)
     entry = global_skill_path(skill.name)
-    installed, conflict = _entry_state(entry, skill.path)
-    if installed:
+    current = _install_state(entry, skill.path)
+    if current == "missing":
+        _copy_tree(skill.path, entry)
         return {
             "skill": skill.name,
             "entry": entry,
             "path": skill.path,
             "global_root": global_skills_root(),
-            "status": "already-installed",
+            "status": "installed",
         }
-    if conflict and not force:
-        raise SkillLibraryError(
-            f"Conflicting global entry exists at {entry}. Use `--force` to replace it."
-        )
-    if conflict and force:
-        _remove_path(entry)
-    elif os.path.lexists(entry):
-        if force:
-            _remove_path(entry)
-        else:
-            raise SkillLibraryError(
-                f"Path already exists at {entry}. Use `--force` to replace it."
-            )
-    _create_junction(entry, skill.path)
+    if current == "linked-match":
+        _copy_tree(skill.path, entry)
+        return {
+            "skill": skill.name,
+            "entry": entry,
+            "path": skill.path,
+            "global_root": global_skills_root(),
+            "status": "migrated-link",
+        }
+    if current == "copied-match":
+        _copy_tree(skill.path, entry)
+        return {
+            "skill": skill.name,
+            "entry": entry,
+            "path": skill.path,
+            "global_root": global_skills_root(),
+            "status": "refreshed",
+        }
+    if current in {"copied-modified", "foreign-conflict"} and not force:
+        return {
+            "skill": skill.name,
+            "entry": entry,
+            "path": skill.path,
+            "global_root": global_skills_root(),
+            "status": "blocked-modified",
+        }
+    _copy_tree(skill.path, entry)
     return {
         "skill": skill.name,
         "entry": entry,
         "path": skill.path,
         "global_root": global_skills_root(),
-        "status": "installed",
+        "status": "replaced",
     }
 
 
@@ -569,6 +760,8 @@ def status_snapshot(project: str | None = None) -> dict[str, object]:
         snapshot["error"] = str(exc)
         return snapshot
     snapshot["configured"] = True
+    snapshot["config_path"] = overview["config_path"]
+    snapshot["pointer_path"] = overview["pointer_path"]
     snapshot["library_root"] = overview["library_root"]
     snapshot["skills"] = overview["skills"]
     snapshot["enabled"] = overview["enabled"]

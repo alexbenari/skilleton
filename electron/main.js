@@ -1,5 +1,5 @@
 const path = require("path");
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 
 const skillLibrary = require("./skill-library");
 
@@ -31,6 +31,29 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, "..", "ui", "index.html"));
 }
 
+function messageForInstallResult(result, scope) {
+  const repoLabel = scope === "repo" ? "this repo" : "global installs";
+  switch (result.status) {
+    case "enabled":
+      return { kind: "info", text: `Copied ${result.skill} into ${repoLabel}` };
+    case "installed":
+      return { kind: "info", text: `Copied ${result.skill} into ${repoLabel}` };
+    case "refreshed":
+      return { kind: "info", text: `Refreshed the copied ${scope} install for ${result.skill}` };
+    case "migrated-link":
+      return { kind: "info", text: `Replaced the legacy ${scope} link for ${result.skill} with a copy` };
+    case "replaced":
+      return { kind: "info", text: `Replaced the existing ${scope} entry for ${result.skill} with a fresh copy` };
+    case "blocked-modified":
+      return {
+        kind: "warn",
+        text: `The existing ${scope} entry for ${result.skill} differs from the library copy.`,
+      };
+    default:
+      return { kind: "info", text: result.skill };
+  }
+}
+
 function pickFolder(defaultPath) {
   if (!mainWindow) {
     throw new Error("Main window is not available.");
@@ -51,8 +74,11 @@ app.whenReady().then(() => {
   ipcMain.handle("skill-manager:get-bootstrap", async () => ({
     initialProject: getInitialProject(),
   }));
-  ipcMain.handle("skill-manager:get-state", async (_, project) =>
-    skillLibrary.statusSnapshot(project || null)
+  ipcMain.handle("skill-manager:get-state", async (_, project, options = {}) =>
+    skillLibrary.statusSnapshot(project || null, options || {})
+  );
+  ipcMain.handle("skill-manager:refresh-repo-statuses", async (_, project, options = {}) =>
+    skillLibrary.refreshRepoStatuses(project || null, options || {})
   );
   ipcMain.handle("skill-manager:set-root", async (_, rootPath, project) => {
     const result = skillLibrary.setRoot(rootPath);
@@ -61,14 +87,20 @@ app.whenReady().then(() => {
       state: skillLibrary.statusSnapshot(project || null),
     };
   });
+  ipcMain.handle("skill-manager:clone-skills-repo", async (_, repoUrl, project) => {
+    const result = skillLibrary.cloneSkillsRepo(repoUrl);
+    return {
+      message: `Cloned ${result.repoUrl} into ${result.destination}`,
+      state: skillLibrary.statusSnapshot(project || null),
+    };
+  });
   ipcMain.handle("skill-manager:enable-skill", async (_, skill, project, force) => {
     const result = skillLibrary.enableSkill(skill, project || null, Boolean(force));
-    const message =
-      result.status === "already-enabled"
-        ? `Skill already enabled: ${result.skill}`
-        : `Enabled ${result.skill} in ${result.projectRoot}`;
+    const message = messageForInstallResult(result, "repo");
     return {
-      message,
+      result,
+      message: message.text,
+      messageKind: message.kind,
       state: skillLibrary.statusSnapshot(project || null),
     };
   });
@@ -85,12 +117,11 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("skill-manager:install-global", async (_, skill, project, force) => {
     const result = skillLibrary.installGlobalSkill(skill, Boolean(force));
-    const message =
-      result.status === "already-installed"
-        ? `Skill already installed globally: ${result.skill}`
-        : `Installed ${result.skill} globally in ${result.globalRoot}`;
+    const message = messageForInstallResult(result, "global");
     return {
-      message,
+      result,
+      message: message.text,
+      messageKind: message.kind,
       state: skillLibrary.statusSnapshot(project || null),
     };
   });
@@ -103,6 +134,29 @@ app.whenReady().then(() => {
     return {
       message,
       state: skillLibrary.statusSnapshot(project || null),
+    };
+  });
+  ipcMain.handle("skill-manager:update-skill-repo", async (_, skill, project) => {
+    const result = skillLibrary.updateSkillRepo(skill, project || null);
+    const message =
+      result.status === "already-up-to-date"
+        ? `Repo already up to date for ${result.skill}`
+        : `Updated repo for ${result.skill}`;
+    return {
+      message,
+      state: skillLibrary.statusSnapshot(project || null),
+    };
+  });
+  ipcMain.handle("skill-manager:set-skill-tags", async (_, skill, tags, project) => {
+    const result = skillLibrary.setSkillTags(skill, tags);
+    return {
+      message: result.tags.length
+        ? `Updated tags for ${result.skill}: ${result.tags.join(", ")}`
+        : `Cleared tags for ${result.skill}`,
+      skill: result.skill,
+      tags: result.tags,
+      allTags: result.allTags,
+      projectRoot: skillLibrary.resolveProjectRoot(project || null),
     };
   });
   ipcMain.handle("skill-manager:delete-library-skill", async (_, skill, project) => {
@@ -121,6 +175,10 @@ app.whenReady().then(() => {
   ipcMain.handle("skill-manager:pick-folder", async (_, defaultPath) =>
     pickFolder(defaultPath || null)
   );
+  ipcMain.handle("skill-manager:open-external", async (_, targetUrl) => {
+    await shell.openExternal(targetUrl);
+    return { ok: true };
+  });
 
   createWindow();
 
