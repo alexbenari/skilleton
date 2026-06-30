@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bugfix By Failing Test"
+  short_description: "Drive bug fixes with a fail-first test workflow"
+  default_prompt: "Use test-first bugfix flow: write failing test, confirm failure, implement minimal fix, and verify pass."

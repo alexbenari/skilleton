@@ -1,0 +1,158 @@
+<h2>Choose The Redesign Direction</h2>
+<p class="subtitle">
+  Both options keep the current Electron + plain HTML/CSS/JS architecture. The
+  difference is how aggressively we compress controls and simplify scanning.
+</p>
+
+<div class="cards">
+  <div class="card" data-choice="command-strip" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 18px; align-items: stretch; justify-content: stretch;">
+      <div style="width: 100%; border-radius: 16px; overflow: hidden; background: #f4ecdd; border: 1px solid #d7ccbb; display: grid; grid-template-rows: auto auto 1fr;">
+        <div style="padding: 12px 14px; background: linear-gradient(135deg, #fff9ef, #f6ead3); border-bottom: 1px solid #d7ccbb;">
+          <div style="font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: #8a7b67;">Skill Library Manager</div>
+          <div style="margin-top: 7px; display: grid; grid-template-columns: 1.1fr 1.1fr auto auto auto; gap: 8px;">
+            <div style="height: 26px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+            <div style="height: 26px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+            <div style="height: 26px; border-radius: 999px; background: #e8f5f3;"></div>
+            <div style="height: 26px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+            <div style="height: 26px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+          </div>
+        </div>
+        <div style="padding: 10px 14px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #d7ccbb; background: rgba(255,253,247,.88);">
+          <div style="padding: 6px 10px; border-radius: 999px; background: #0f766e; color: white; font-size: 10px;">Enabled Here 4</div>
+          <div style="padding: 6px 10px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb; font-size: 10px;">Global 2</div>
+          <div style="padding: 6px 10px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb; font-size: 10px;">Conflicts 0</div>
+          <div style="margin-left: auto; width: 110px; height: 12px; border-radius: 999px; background: #efe5d6;"></div>
+        </div>
+        <div style="padding: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div style="border-radius: 16px; background: rgba(255,255,255,.8); border: 1px solid #d7ccbb; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #2f281f;">tank-design-patterns</div>
+                <div style="margin-top: 4px; font-size: 10px; color: #7d6f5e;">Repo imported from packages</div>
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: #eab308;"></div>
+                <div style="width: 18px; height: 18px; border-radius: 999px; border: 1px solid #d7ccbb;"></div>
+              </div>
+            </div>
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+              <div style="flex: 1; height: 28px; border-radius: 999px; background: #0f766e;"></div>
+              <div style="width: 66px; height: 28px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+              <div style="width: 28px; height: 28px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+            </div>
+          </div>
+          <div style="border-radius: 16px; background: rgba(255,255,255,.8); border: 1px solid #d7ccbb; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #2f281f;">brainstorming</div>
+                <div style="margin-top: 4px; font-size: 10px; color: #7d6f5e;">Core superpowers skill</div>
+              </div>
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #16a34a;"></div>
+            </div>
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+              <div style="flex: 1; height: 28px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+              <div style="width: 72px; height: 28px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+              <div style="width: 28px; height: 28px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Command Strip + Smart Cards</h3>
+      <p>
+        Compress root, project, counts, and filters into a single command strip.
+        Keep skill cards as the main surface, with pills and secondary details
+        tucked behind drawers or menus.
+      </p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="two-tier" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 18px; align-items: stretch; justify-content: stretch;">
+      <div style="width: 100%; border-radius: 16px; overflow: hidden; background: #f4ecdd; border: 1px solid #d7ccbb; display: grid; grid-template-columns: 188px 1fr;">
+        <div style="padding: 14px 12px; background: linear-gradient(180deg, #fffaf2, #f1e4cf); border-right: 1px solid #d7ccbb; display: grid; align-content: start; gap: 10px;">
+          <div style="font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: #8a7b67;">Workspace</div>
+          <div style="height: 30px; border-radius: 14px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+          <div style="height: 30px; border-radius: 14px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+          <div style="padding: 8px 10px; border-radius: 14px; background: rgba(255,255,255,.8); border: 1px solid #d7ccbb;">
+            <div style="font-size: 10px; color: #7d6f5e;">Enabled Here</div>
+            <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px;">
+              <div style="height: 18px; width: 58px; border-radius: 999px; background: #efe5d6;"></div>
+              <div style="height: 18px; width: 64px; border-radius: 999px; background: #efe5d6;"></div>
+              <div style="height: 18px; width: 46px; border-radius: 999px; background: #efe5d6;"></div>
+            </div>
+          </div>
+          <div style="padding: 8px 10px; border-radius: 14px; background: rgba(255,255,255,.8); border: 1px solid #d7ccbb;">
+            <div style="font-size: 10px; color: #7d6f5e;">Status</div>
+            <div style="margin-top: 6px; height: 26px; border-radius: 12px; background: #e8f5f3;"></div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-rows: auto auto 1fr;">
+          <div style="padding: 12px 14px; border-bottom: 1px solid #d7ccbb; background: rgba(255,253,247,.92); display: flex; gap: 8px;">
+            <div style="flex: 1; height: 28px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+            <div style="width: 78px; height: 28px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+            <div style="width: 94px; height: 28px; border-radius: 999px; background: #0f766e;"></div>
+          </div>
+          <div style="padding: 10px 14px; display: flex; gap: 8px; border-bottom: 1px solid #d7ccbb;">
+            <div style="padding: 6px 10px; border-radius: 999px; background: #0f766e; color: white; font-size: 10px;">All</div>
+            <div style="padding: 6px 10px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb; font-size: 10px;">Needs Update</div>
+            <div style="padding: 6px 10px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb; font-size: 10px;">Global</div>
+          </div>
+          <div style="padding: 14px; display: grid; gap: 10px;">
+            <div style="border-radius: 14px; background: rgba(255,255,255,.82); border: 1px solid #d7ccbb; padding: 12px; display: grid; gap: 9px;">
+              <div style="display: flex; justify-content: space-between;">
+                <div style="width: 150px; height: 12px; border-radius: 999px; background: #e7dcc8;"></div>
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: #eab308;"></div>
+              </div>
+              <div style="height: 8px; width: 75%; border-radius: 999px; background: #efe5d6;"></div>
+              <div style="display: flex; gap: 8px;">
+                <div style="width: 120px; height: 26px; border-radius: 999px; background: #0f766e;"></div>
+                <div style="width: 94px; height: 26px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+              </div>
+            </div>
+            <div style="border-radius: 14px; background: rgba(255,255,255,.82); border: 1px solid #d7ccbb; padding: 12px; display: grid; gap: 9px;">
+              <div style="display: flex; justify-content: space-between;">
+                <div style="width: 118px; height: 12px; border-radius: 999px; background: #e7dcc8;"></div>
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: #94a3b8;"></div>
+              </div>
+              <div style="height: 8px; width: 58%; border-radius: 999px; background: #efe5d6;"></div>
+              <div style="display: flex; gap: 8px;">
+                <div style="width: 120px; height: 26px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+                <div style="width: 94px; height: 26px; border-radius: 999px; background: #fffdf7; border: 1px solid #d7ccbb;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Two-Tier Workspace</h3>
+      <p>
+        Keep a narrower persistent workspace rail for root, project, and status,
+        then use a cleaner content area with scoped filter chips and simpler
+        cards. More explicit than A, but still much tighter than today.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros">
+    <h4>What I’m Testing</h4>
+    <ul>
+      <li>How aggressively we should compress the top area</li>
+      <li>Whether context belongs in one strip or a thin side rail</li>
+      <li>How much of the “current repo state” should stay always visible</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>Ignore For Now</h4>
+    <ul>
+      <li>Exact colors, typography, and spacing polish</li>
+      <li>Micro-interactions and motion language</li>
+      <li>Final button labels and icon set</li>
+    </ul>
+  </div>
+</div>
