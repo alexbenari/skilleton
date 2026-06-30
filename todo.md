@@ -1,0 +1,2 @@
+- In agents.md, there is a planning flow section and the reference to plans.md inside it which seem to overlap the spec+plan flow in superpowers. Check whether the two can be folded together and setup can be simplified, removing plans.md and possibly the  planning flow section as well.
+- Add llm-code related skill or agents.md section based on future additions.md

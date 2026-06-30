@@ -1,0 +1,4 @@
+interface:
+  display_name: "Doc Update"
+  short_description: "Maintain the agent architecture knowledge base"
+  default_prompt: "Update docs/agent-docs as the canonical agent-facing architecture knowledge base, keeping the main map structural and pruning stale deeper docs when needed."
