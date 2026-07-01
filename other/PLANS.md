@@ -1,12 +1,16 @@
-# Codex Execution Plans (ExecPlans):
+# Execution Plans (ExecPlans):
 
-This document defines the requirements for an execution plan ("ExecPlan"), a self-contained design and implementation spec that a coding agent can execute to deliver a working feature or system change. Assume the reader has only the current repository snapshot and the single ExecPlan file you provide. There is no memory of previous plans or external context.
+This document defines the requirements for an execution plan ("ExecPlan"), a self-contained design and implementation spec that an agent can execute to deliver a working feature or system change. Assume the reader has only the current repository snapshot and the single ExecPlan file you provide. There is no memory of previous plans or external context.
 
 ## How to use ExecPlans and PLANS.md
 
 When writing an ExecPlan, follow PLANS.md exactly. If you do not know it by heart, read the entire file before drafting your plan. Start with the skeleton and expand it as you research.
 
+When writing an ExecPlan, use applicable workflow and design skills before the plan records design decisions. Record the relevant skills or equivalent guidance in the plan's `Skill Gates` section.
+
 When executing an ExecPlan, do not ask the user for "next steps." Proceed to the next milestone. Keep all sections current, split or add steps at each stopping point, and record what changed and why.
+
+When executing an ExecPlan, treat each implementation step as triggering the same skills it would trigger if requested directly; apply them before the work is performed. Keep the `Skill Gates`, `Progress`, and `Decision Log` sections current as skills are used and decisions change.
 
 When discussing an ExecPlan, keep decisions in the plan so someone can restart from the document alone.
 
@@ -50,8 +54,7 @@ Implementation details and observability:
 Milestones must be concrete and independently verifiable. For each milestone, include:
 
 * Scope: what capability is added in this step.
-* Files: exact files to modify/create.
-* Changes: code-level description.
+* Changes: exact files to modify/create and the code-level description of each change.
 * Validation: commands/tests and expected results.
 * Rollback/Containment: how to recover if the step fails.
 
@@ -60,11 +63,24 @@ Milestones must be concrete and independently verifiable. For each milestone, in
 Every ExecPlan must maintain these sections:
 
 1. `Progress`
-2. `Surprises & Discoveries`
-3. `Decision Log`
-4. `Outcomes & Retrospective`
+2. `Skill Gates`
+3. `Surprises & Discoveries`
+4. `Decision Log`
+5. `Outcomes & Retrospective`
 
 Update these sections during execution, not after.
+
+## Skill Gates
+
+Every ExecPlan must include a `Skill Gates` section that lists which skills or equivalent guidance apply while writing and executing the plan.
+
+The section must cover both planning-time and execution-time work:
+
+* Planning gates: skills or guidance used before the plan records design decisions such as architecture, module boundaries, public interfaces, state ownership, refactoring strategy, test strategy, build or dependency changes, observability, error handling, security boundaries, frontend behavior, or documentation updates.
+* Execution gates: skills or guidance required before implementation, tests, refactors, API changes, build changes, documentation updates, architecture changes, or completion review.
+* Availability: any expected skill that is unavailable in the current environment, plus the fallback guidance used instead.
+
+Update this section when the plan changes scope or discovers new work that triggers additional skills.
 
 ## Prototypes and parallel implementations
 
@@ -91,6 +107,20 @@ Describe the user-visible capability and why it is needed.
 - [ ] (YYYY-MM-DD HH:MMZ) <Concrete deliverable>
 - [ ] <...>
 - [x] (YYYY-MM-DD HH:MMZ) <Completed item>
+
+## Skill Gates
+
+Planning-time gates:
+
+- <Skill or guidance>: <why it applies while drafting this plan>
+
+Execution-time gates:
+
+- <Skill or guidance>: <when it must be used during implementation>
+
+Unavailable skills or fallbacks:
+
+- <Skill or guidance>: <fallback, or "none">
 
 ## Surprises & Discoveries
 
