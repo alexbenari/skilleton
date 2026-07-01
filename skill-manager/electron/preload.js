@@ -10,8 +10,17 @@ contextBridge.exposeInMainWorld("skillManager", {
   refreshRepoStatuses: (project, options) =>
     invoke("skill-manager:refresh-repo-statuses", project, options),
   setRoot: (rootPath, project) => invoke("skill-manager:set-root", rootPath, project),
+  listLibraries: () => invoke("skill-manager:list-libraries"),
+  selectLibrary: (libraryId, project) =>
+    invoke("skill-manager:select-library", libraryId, project),
+  refreshLibrary: (libraryId, project) =>
+    invoke("skill-manager:refresh-library", libraryId, project),
+  deleteLibrary: (libraryId, project) =>
+    invoke("skill-manager:delete-library", libraryId, project),
   cloneSkillsRepo: (repoUrl, project) =>
     invoke("skill-manager:clone-skills-repo", repoUrl, project),
+  cleanupImportedRepository: (destination, project) =>
+    invoke("skill-manager:cleanup-imported-repository", destination, project),
   enableSkill: (skill, project, force) =>
     invoke("skill-manager:enable-skill", skill, project, force),
   disableSkill: (skill, project) => invoke("skill-manager:disable-skill", skill, project),

@@ -1,2 +1,9 @@
-- In agents.md, there is a planning flow section and the reference to plans.md inside it which seem to overlap the spec+plan flow in superpowers. Check whether the two can be folded together and setup can be simplified, removing plans.md and possibly the  planning flow section as well.
+- import from D:\OneDrive\dev\skills-main, including the json file
+- verify if coding and testing skills are really used during plan execution
+- inside skills, perhaps add a folder for yet untested skills?
+- implement skill addition flow and skill update floww properly
+- update with new skills from mail
+- In other/agents.md, there is a planning flow section and the reference to plans.md inside it which seem to overlap the spec+plan flow in superpowers. Check whether the two can be folded together and setup can be simplified, removing plans.md and possibly the  planning flow section as well.
 - Add llm-code related skill or agents.md section based on future additions.md
+- Add guidance about testing with mocks
+- Remove the legacy Python CLI from skill-manager as part of the Electron-native SQLite migration (completed 2026-06-30)

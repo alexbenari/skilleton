@@ -1,9 +1,16 @@
 const path = require("path");
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 
-const skillLibrary = require("./skill-library");
+const { ActiveSkillLibrary } = require("./active-skill-library");
+const { AppConfig } = require("./app-config");
+const { createDBAdapter } = require("./skill-library-db");
+const { SkillDiscovery } = require("./skill-discovery");
+const { SkillInstaller } = require("./skill-installer");
+const { SkillRepositoryImporter } = require("./skill-repository-importer");
 
 let mainWindow = null;
+let skillLibrary = null;
+let db = null;
 
 function getInitialProject() {
   const arg = process.argv.find((value) => value.startsWith("--project="));
@@ -29,6 +36,14 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "..", "ui", "index.html"));
+}
+
+function databasePath() {
+  return process.env.SKILL_MANAGER_DB_PATH || path.join(app.getPath("userData"), "skill-manager.sqlite");
+}
+
+function appConfigPath() {
+  return process.env.SKILL_MANAGER_APP_CONFIG_PATH || path.join(app.getPath("userData"), "skill-manager-config.json");
 }
 
 function messageForInstallResult(result, scope) {
@@ -71,6 +86,23 @@ function pickFolder(defaultPath) {
 }
 
 app.whenReady().then(() => {
+  db = createDBAdapter({ databasePath: databasePath() });
+  const discovery = new SkillDiscovery({ fileSystem: require("fs") });
+  const installer = new SkillInstaller();
+  const appConfig = new AppConfig({ configPath: appConfigPath() });
+  const repositoryImporter = new SkillRepositoryImporter({ db, discovery });
+  skillLibrary = new ActiveSkillLibrary({
+    db,
+    discovery,
+    installer,
+    appConfig,
+    repositoryImporter,
+    databasePath: databasePath(),
+    appConfigPath: appConfigPath(),
+  });
+  db.initialize();
+  appConfig.read();
+
   ipcMain.handle("skill-manager:get-bootstrap", async () => ({
     initialProject: getInitialProject(),
   }));
@@ -84,13 +116,70 @@ app.whenReady().then(() => {
     const result = skillLibrary.setRoot(rootPath);
     return {
       message: `Library root set to ${result.rootPath}`,
+      state: skillLibrary.statusSnapshot(project || null, {
+        selectedLibraryId: result.library.id,
+      }),
+    };
+  });
+  ipcMain.handle("skill-manager:list-libraries", async () => skillLibrary.listLibraries());
+  ipcMain.handle("skill-manager:select-library", async (_, libraryId, project) => {
+    const library = skillLibrary.selectLibrary(libraryId);
+    return {
+      message: `Loaded library ${library.localPath}`,
+      state: skillLibrary.statusSnapshot(project || null, {
+        selectedLibraryId: library.id,
+      }),
+    };
+  });
+  ipcMain.handle("skill-manager:refresh-library", async (_, libraryId, project) => {
+    const result = skillLibrary.refreshLibrary(libraryId || null);
+    return {
+      message: `Library refreshed: ${result.libraryRoot}`,
+      state: skillLibrary.statusSnapshot(project || null, {
+        selectedLibraryId: result.libraryId,
+      }),
+    };
+  });
+  ipcMain.handle("skill-manager:delete-library", async (_, libraryId, project) => {
+    skillLibrary.deleteLibrary(libraryId);
+    return {
+      message: "Library removed from the catalog.",
       state: skillLibrary.statusSnapshot(project || null),
     };
   });
   ipcMain.handle("skill-manager:clone-skills-repo", async (_, repoUrl, project) => {
-    const result = skillLibrary.cloneSkillsRepo(repoUrl);
+    const result = skillLibrary.addSkillsFromRepository(repoUrl);
+    const nextState = skillLibrary.statusSnapshot(project || null);
+    if (result.status === "no-skills-found") {
+      return {
+        result,
+        cleanupOffered: true,
+        message: `Cloned ${result.repoUrl}, but no SKILL.md entries were found.`,
+        messageKind: "warn",
+        state: nextState,
+      };
+    }
+    if (result.status === "duplicate-name") {
+      return {
+        result,
+        message: `Could not add ${result.repoUrl}: skill "${result.duplicateName}" already exists in the catalog.`,
+        messageKind: "error",
+        state: nextState,
+      };
+    }
     return {
+      result,
       message: `Cloned ${result.repoUrl} into ${result.destination}`,
+      messageKind: "info",
+      state: nextState,
+    };
+  });
+  ipcMain.handle("skill-manager:cleanup-imported-repository", async (_, destination, project) => {
+    const result = skillLibrary.cleanupImportedRepository(destination);
+    return {
+      result,
+      message: `Deleted cloned folder ${result.destination}`,
+      messageKind: "info",
       state: skillLibrary.statusSnapshot(project || null),
     };
   });
@@ -156,7 +245,7 @@ app.whenReady().then(() => {
       skill: result.skill,
       tags: result.tags,
       allTags: result.allTags,
-      projectRoot: skillLibrary.resolveProjectRoot(project || null),
+      projectRoot: skillLibrary.installer.resolveProjectRoot(project || null),
     };
   });
   ipcMain.handle("skill-manager:delete-library-skill", async (_, skill, project) => {
@@ -193,4 +282,16 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  if (!db) {
+    return;
+  }
+  try {
+    db.close();
+  } catch {
+    // Ignore close errors during shutdown.
+  }
+  db = null;
 });

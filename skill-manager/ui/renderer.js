@@ -93,6 +93,10 @@
     return state.projectPath.trim();
   }
 
+  function selectedLibraryId() {
+    return state.snapshot?.selectedLibraryId || null;
+  }
+
   function escapeHtml(value) {
     return String(value)
       .replaceAll("&", "&amp;")
@@ -110,9 +114,20 @@
     return parts.length ? parts[parts.length - 1] : targetPath;
   }
 
-  function buildSummaryLine(snapshot) {
+  function legacyBuildSummaryLine(snapshot) {
     const updates = (snapshot.skills || []).filter((skill) => skill.repoStatus === "needs_update").length;
     return `${snapshot.skillCount || 0} skills • ${snapshot.enabledCount || 0} enabled • ${snapshot.globalEnabledCount || 0} global • ${updates} update${updates === 1 ? "" : "s"}`;
+  }
+
+  function buildSummaryLine(snapshot) {
+    if (snapshot.librarySelectionRequired) {
+      return `${(snapshot.libraries || []).length} libraries available. Select one to load its catalog.`;
+    }
+    if (!snapshot.selectedLibraryId) {
+      return "No library selected yet.";
+    }
+    const updates = (snapshot.skills || []).filter((skill) => skill.repoStatus === "needs_update").length;
+    return `${snapshot.skillCount || 0} skills | ${snapshot.enabledCount || 0} enabled | ${snapshot.globalEnabledCount || 0} global | ${updates} update${updates === 1 ? "" : "s"}`;
   }
 
   function syncResolvedPaths(snapshot) {
@@ -141,13 +156,19 @@
   }
 
   async function refreshRepoStatusesInBackground(options = {}) {
-    if (!state.snapshot?.configured || state.repoStatusRefreshInFlight) {
+    if (
+      !state.snapshot?.configured ||
+      state.snapshot?.librarySelectionRequired ||
+      !selectedLibraryId() ||
+      state.repoStatusRefreshInFlight
+    ) {
       return;
     }
     state.repoStatusRefreshInFlight = true;
     try {
       const result = await api.refreshRepoStatuses(currentProject() || null, {
         force: Boolean(options.force),
+        selectedLibraryId: selectedLibraryId(),
       });
       if (result.projectRoot && result.projectRoot !== state.snapshot?.projectRoot) {
         return;
@@ -173,20 +194,26 @@
     }
     try {
       state.snapshot = await api.getState(currentProject() || null, {
-        forceDiscovery: Boolean(options.forceDiscovery),
+        selectedLibraryId: selectedLibraryId(),
       });
       syncResolvedPaths(state.snapshot);
+      if (state.snapshot.librarySelectionRequired && !state.sidePanelSection) {
+        state.sidePanelSection = "library";
+      }
       render();
       if (state.snapshot.error) {
         setMessage("warn", state.snapshot.error);
         return false;
+      } else if (state.snapshot.librarySelectionRequired) {
+        setMessage("warn", "Choose which skill library to load.");
+        return true;
       } else if (message) {
         setMessage("info", enabledCountMessage(message));
       } else {
         setMessage("info", enabledCountMessage("Library and repo state refreshed."));
       }
       if (options.refreshGit !== false) {
-        refreshRepoStatusesInBackground({ force: Boolean(options.forceDiscovery) });
+        refreshRepoStatusesInBackground({ force: Boolean(options.force) });
       }
       return true;
     } catch (error) {
@@ -209,6 +236,9 @@
       const result = await action();
       state.snapshot = result.state || state.snapshot;
       syncResolvedPaths(state.snapshot);
+      if (state.snapshot?.librarySelectionRequired && !state.sidePanelSection) {
+        state.sidePanelSection = "library";
+      }
       render();
       const messageKind = result.messageKind || "info";
       const messageText =
@@ -338,6 +368,9 @@
 
   function renderFilterChips() {
     filterChipsEl.innerHTML = "";
+    if (!state.snapshot?.selectedLibraryId || state.snapshot.librarySelectionRequired) {
+      return;
+    }
     CHIP_DEFS.forEach((chip) => {
       const button = document.createElement("button");
       button.type = "button";
@@ -451,7 +484,15 @@
       skillsEl.innerHTML = '<div class="empty">Set a valid library root to start browsing skills.</div>';
       return;
     }
+    if (snapshot.librarySelectionRequired) {
+      renderLibrarySelectionState(snapshot);
+      return;
+    }
     const skills = sortedVisibleSkills(snapshot);
+    if (!snapshot.skillCount && !state.filter.trim() && !state.activeFilters.size && !state.activeTagFilters.size) {
+      skillsEl.innerHTML = '<div class="empty">No skills are cataloged for this library yet. Refresh the selected library to scan its current folders.</div>';
+      return;
+    }
     if (!skills.length) {
       skillsEl.innerHTML = '<div class="empty">No skills match the current filter set.</div>';
       return;
@@ -781,6 +822,185 @@
     });
   }
 
+  async function selectLibrary(libraryId) {
+    const result = await runAction(
+      () => api.selectLibrary(libraryId, currentProject() || null),
+      "Loading skill library..."
+    );
+    if (result) {
+      state.sidePanelSection = null;
+      renderSidePanel();
+      refreshRepoStatusesInBackground({ force: true });
+    }
+  }
+
+  async function refreshSelectedLibrary() {
+    if (!selectedLibraryId()) {
+      setMessage("warn", "Choose a skill library first.");
+      state.sidePanelSection = "library";
+      renderSidePanel();
+      return;
+    }
+    const result = await runAction(
+      () => api.refreshLibrary(selectedLibraryId(), currentProject() || null),
+      "Refreshing the selected library..."
+    );
+    if (result) {
+      refreshRepoStatusesInBackground({ force: true });
+    }
+  }
+
+  async function deleteLibrary(library) {
+    const confirmed = window.confirm(
+      `Remove ${library.localPath} from the catalog?\n\nThis deletes the library row, its skills, and their tags from the database. It does not delete files on disk.`
+    );
+    if (!confirmed) {
+      return;
+    }
+    await runAction(
+      () => api.deleteLibrary(library.id, currentProject() || null),
+      `Removing ${library.localPath} from the catalog...`
+    );
+  }
+
+  function renderLibrarySelectionState(snapshot) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "empty";
+
+    const title = document.createElement("strong");
+    title.textContent = "Choose a skill library to continue.";
+    wrapper.appendChild(title);
+
+    const copy = document.createElement("div");
+    copy.className = "meta";
+    copy.style.marginTop = "10px";
+    copy.textContent = "The catalog is loaded from the selected library only. You can add another root from the library panel.";
+    wrapper.appendChild(copy);
+
+    const actions = document.createElement("div");
+    actions.className = "row wrap";
+    actions.style.justifyContent = "center";
+    actions.style.marginTop = "14px";
+
+    for (const library of snapshot.libraries || []) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary";
+      button.textContent = shortPathLabel(library.localPath, library.localPath);
+      button.title = library.localPath;
+      button.addEventListener("click", () => selectLibrary(library.id));
+      actions.appendChild(button);
+    }
+
+    const manageButton = document.createElement("button");
+    manageButton.type = "button";
+    manageButton.className = "primary";
+    manageButton.textContent = "Manage Libraries";
+    manageButton.addEventListener("click", () => {
+      state.sidePanelSection = "library";
+      renderSidePanel();
+    });
+    actions.appendChild(manageButton);
+
+    wrapper.appendChild(actions);
+    skillsEl.appendChild(wrapper);
+  }
+
+  function renderLibraryPanel(snapshot) {
+    sidePanelTitle.textContent = "Skill Libraries";
+    sidePanelBody.innerHTML = `
+      <div class="panel-group">
+        <div class="panel-label">Selected Library</div>
+        <div class="panel-path">${escapeHtml(snapshot.libraryRoot || "Choose a library from the catalog below.")}</div>
+      </div>
+      <div class="panel-group">
+        <div class="panel-label">Catalog</div>
+        <div id="library-list"></div>
+      </div>
+      <div class="panel-group">
+        <label class="panel-label" for="side-root-input">Add Library Root</label>
+        <input id="side-root-input" type="text" value="${escapeHtml(state.rootDraft || snapshot.libraryRoot || "")}" placeholder="C:\\dev\\skills-main">
+      </div>
+      <div class="row wrap">
+        <button type="button" class="secondary" id="side-root-input-browse">Browse</button>
+        <button type="button" class="primary" id="side-root-input-submit">Save Root</button>
+        <button type="button" class="secondary" id="side-root-input-refresh">Refresh Selected</button>
+      </div>
+    `;
+
+    const list = document.getElementById("library-list");
+    const libraries = snapshot.libraries || [];
+    if (!libraries.length) {
+      list.innerHTML = '<div class="empty">No libraries are stored in the catalog yet.</div>';
+    } else {
+      libraries.forEach((library) => {
+        const item = document.createElement("div");
+        item.className = "panel-item";
+
+        const header = document.createElement("div");
+        header.className = "row wrap";
+        header.style.justifyContent = "space-between";
+        header.style.alignItems = "flex-start";
+
+        const copy = document.createElement("div");
+        copy.style.minWidth = "0";
+        copy.innerHTML = `
+          <strong>${escapeHtml(shortPathLabel(library.localPath, library.localPath))}</strong>
+          <div class="meta">${escapeHtml(library.localPath)}</div>
+        `;
+
+        const actions = document.createElement("div");
+        actions.className = "row wrap";
+
+        const selectButton = document.createElement("button");
+        selectButton.type = "button";
+        selectButton.className = library.id === snapshot.selectedLibraryId ? "primary summary-action" : "secondary summary-action";
+        selectButton.textContent = library.id === snapshot.selectedLibraryId ? "Loaded" : "Load";
+        selectButton.disabled = library.id === snapshot.selectedLibraryId;
+        selectButton.addEventListener("click", () => selectLibrary(library.id));
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "danger-outline summary-action";
+        deleteButton.textContent = "Remove";
+        deleteButton.addEventListener("click", () => deleteLibrary(library));
+
+        actions.append(selectButton, deleteButton);
+        header.append(copy, actions);
+        item.appendChild(header);
+        list.appendChild(item);
+      });
+    }
+
+    const input = document.getElementById("side-root-input");
+    const browseButton = document.getElementById("side-root-input-browse");
+    const submitButton = document.getElementById("side-root-input-submit");
+    const refreshButton = document.getElementById("side-root-input-refresh");
+
+    input.addEventListener("input", () => {
+      state.rootDraft = input.value;
+    });
+    browseButton.addEventListener("click", async () => browseForPath("root", state.rootDraft || snapshot.libraryRoot || ""));
+    submitButton.addEventListener("click", async () => {
+      const nextPath = input.value.trim();
+      if (!nextPath) {
+        setMessage("warn", "Enter a library root first.");
+        return;
+      }
+      state.rootDraft = nextPath;
+      const result = await runAction(
+        () => api.setRoot(nextPath, currentProject() || null),
+        `Saving library root ${nextPath}...`,
+        "Library root updated."
+      );
+      if (result) {
+        state.sidePanelSection = null;
+        renderSidePanel();
+      }
+    });
+    refreshButton.addEventListener("click", refreshSelectedLibrary);
+  }
+
   function renderSidePanel() {
     if (!state.sidePanelSection || !state.snapshot) {
       sidePanel.classList.remove("open");
@@ -794,35 +1014,7 @@
     sidePanel.setAttribute("aria-hidden", "false");
 
     if (state.sidePanelSection === "library") {
-      const { input } = renderPathPanel(
-        "Library Root",
-        snapshot.libraryRoot || "",
-        "side-root-input",
-        state.rootDraft || snapshot.libraryRoot || "",
-        "C:\\dev\\skills-main",
-        async () => browseForPath("root", state.rootDraft || snapshot.libraryRoot || ""),
-        async (nextPath) => {
-          if (!nextPath) {
-            setMessage("warn", "Enter a library root first.");
-            return;
-          }
-          state.rootDraft = nextPath;
-          const succeeded = await runAction(
-            () => api.setRoot(nextPath, currentProject() || null),
-            `Saving library root ${nextPath}...`,
-            "Library root updated."
-          );
-          if (succeeded) {
-            state.sidePanelSection = null;
-            renderSidePanel();
-          }
-        },
-        "Save Root",
-        () => refreshState("Library and repo state refreshed.")
-      );
-      input.addEventListener("input", () => {
-        state.rootDraft = input.value;
-      });
+      renderLibraryPanel(snapshot);
       return;
     }
 
@@ -887,13 +1079,22 @@
       return;
     }
 
-    libraryTrigger.textContent = `Library: ${shortPathLabel(snapshot.libraryRoot, "Not set")}`;
-    libraryTrigger.title = snapshot.libraryRoot || "Library root is not configured.";
+    libraryTrigger.textContent = snapshot.librarySelectionRequired
+      ? "Library: Choose"
+      : `Library: ${shortPathLabel(snapshot.libraryRoot, "Not set")}`;
+    libraryTrigger.title = snapshot.librarySelectionRequired
+      ? "Choose which skill library to load."
+      : snapshot.libraryRoot || "Library root is not configured.";
     projectTrigger.textContent = `Project: ${shortPathLabel(snapshot.projectRoot, "No project")}`;
     projectTrigger.title = snapshot.projectRoot || "Project root is not resolved.";
-    skillsMetaEl.textContent = `${buildSummaryLine(snapshot)}. Enabled skills appear first. Use chips to narrow the list.`;
+    skillsMetaEl.textContent = snapshot.librarySelectionRequired
+      ? buildSummaryLine(snapshot)
+      : `${buildSummaryLine(snapshot)}. Enabled skills appear first. Use chips to narrow the list.`;
     showEnabledPanelButton.textContent = `Enabled Here (${snapshot.enabledCount || 0})`;
     showGlobalPanelButton.textContent = `Installed Globally (${snapshot.globalEnabledCount || 0})`;
+    if (snapshot.librarySelectionRequired && !state.sidePanelSection) {
+      state.sidePanelSection = "library";
+    }
 
     renderFilterInput();
     renderFilterChips();
@@ -1092,6 +1293,12 @@
   }
 
   function openCloneModal() {
+    if (!selectedLibraryId()) {
+      setMessage("warn", "Choose a skill library before adding skills.");
+      state.sidePanelSection = "library";
+      renderSidePanel();
+      return;
+    }
     state.cloneModalOpen = true;
     renderCloneModal();
     window.setTimeout(() => cloneUrlInput.focus(), 0);
@@ -1110,10 +1317,28 @@
       return;
     }
     closeCloneModal();
-    await runAction(
+    const result = await runAction(
       () => api.cloneSkillsRepo(repoUrl, currentProject() || null),
       `Cloning ${repoUrl}...`
     );
+    if (result?.result?.status === "duplicate-name") {
+      const details = result.result;
+      setMessage(
+        "error",
+        `Duplicate skill "${details.duplicateName}". Existing: ${details.existingSkillLocalPath}. Cloned copy: ${details.newSkillLocalPath}.`
+      );
+    }
+    if (result?.result?.status === "no-skills-found") {
+      const cleanup = window.confirm(
+        `No skills were found in ${result.result.destination}.\n\nDelete the cloned repo folder now?`
+      );
+      if (cleanup) {
+        await runAction(
+          () => api.cleanupImportedRepository(result.result.destination, currentProject() || null),
+          `Deleting ${result.result.destination}...`
+        );
+      }
+    }
     cloneUrlInput.value = "";
   }
 
@@ -1252,10 +1477,7 @@
   });
 
   refreshSkillsButton.addEventListener("click", async () => {
-    await refreshState("Available skills list refreshed.", {
-      forceDiscovery: true,
-      refreshGit: true,
-    });
+    await refreshSelectedLibrary();
   });
 
   addSkillsButton.addEventListener("click", openCloneModal);
