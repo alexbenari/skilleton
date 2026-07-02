@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(fd *)",
+      "Bash(gh api *)",
+      "Bash(gh issue *)",
+      "Bash(gh pr *)",
+      "Bash(gh repo *)",
+      "Bash(gh run *)",
+      "Bash(git add *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git fetch *)",
+      "Bash(git cherry-pick *)",
+      "Bash(git commit *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(git rebase *)",
+      "Bash(git remote *)",
+      "Bash(git restore *)",
+      "Bash(git rev-parse *)",
+      "Bash(git show *)",
+      "Bash(git stash *)",
+      "Bash(git status *)",
+      "Bash(git switch *)",
+      "Bash(git tag *)",
+      "Bash(ls *)",
+      "Bash(pre-commit *)",
+      "Bash(rg *)",
+      "Edit(.claude/rules/**)",
+      "WebFetch(domain:agentic-patterns.com)",
+      "Write(.claude/rules/**)",
+      "mcp__chrome-devtools",
+      "mcp__context7",
+      "mcp__github__issue_read",
+      "mcp__github__issue_write",
+      "mcp__github__search_issues",
+      "mcp__playwright",
+      "mcp__sequential-thinking"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/path-bootstrap.sh\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/install_pkgs.sh\""
+          }
+        ]
+      }
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledPlugins": {
+    "accessibility-plugin@laurigates-claude-plugins": true,
+    "agent-patterns-plugin@laurigates-claude-plugins": true,
+    "agents-plugin@laurigates-claude-plugins": true,
+    "api-plugin@laurigates-claude-plugins": true,
+    "bevy-plugin@laurigates-claude-plugins": true,
+    "blog-plugin@laurigates-claude-plugins": true,
+    "blueprint-plugin@laurigates-claude-plugins": true,
+    "code-quality-plugin@laurigates-claude-plugins": true,
+    "codebase-attributes-plugin@laurigates-claude-plugins": true,
+    "comfyui-plugin@laurigates-claude-plugins": true,
+    "communication-plugin@laurigates-claude-plugins": true,
+    "component-patterns-plugin@laurigates-claude-plugins": true,
+    "configure-plugin@laurigates-claude-plugins": true,
+    "container-plugin@laurigates-claude-plugins": true,
+    "css-plugin@laurigates-claude-plugins": true,
+    "documentation-plugin@laurigates-claude-plugins": true,
+    "evaluate-plugin@laurigates-claude-plugins": true,
+    "feedback-plugin@laurigates-claude-plugins": true,
+    "finops-plugin@laurigates-claude-plugins": true,
+    "git-plugin@laurigates-claude-plugins": true,
+    "github-actions-plugin@laurigates-claude-plugins": true,
+    "health-plugin@laurigates-claude-plugins": true,
+    "home-assistant-plugin@laurigates-claude-plugins": true,
+    "hooks-plugin@laurigates-claude-plugins": true,
+    "kubernetes-plugin@laurigates-claude-plugins": true,
+    "langchain-plugin@laurigates-claude-plugins": true,
+    "macos-plugin@laurigates-claude-plugins": true,
+    "migration-patterns-plugin@laurigates-claude-plugins": true,
+    "networking-plugin@laurigates-claude-plugins": true,
+    "obsidian-plugin@laurigates-claude-plugins": true,
+    "project-plugin@laurigates-claude-plugins": true,
+    "prompt-engineering-plugin@laurigates-claude-plugins": true,
+    "prose-plugin@laurigates-claude-plugins": true,
+    "python-plugin@laurigates-claude-plugins": true,
+    "rust-plugin@laurigates-claude-plugins": true,
+    "taskwarrior-plugin@laurigates-claude-plugins": true,
+    "terraform-plugin@laurigates-claude-plugins": true,
+    "testing-plugin@laurigates-claude-plugins": true,
+    "tools-plugin@laurigates-claude-plugins": true,
+    "typescript-plugin@laurigates-claude-plugins": true,
+    "workflow-orchestration-plugin@laurigates-claude-plugins": true,
+    "session-plugin@laurigates-claude-plugins": true
+  },
+  "extraKnownMarketplaces": {
+    "laurigates-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "laurigates/claude-plugins"
+      }
+    }
+  }
+}

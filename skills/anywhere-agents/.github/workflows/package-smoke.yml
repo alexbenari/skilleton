@@ -1,0 +1,187 @@
+name: Package Smoke
+
+# Verifies the published PyPI and npm packages actually install and run.
+# Runs:
+#   - on GitHub Release publish (post-release validation; pins to the
+#     release tag's version so the assertion catches registry drift
+#     where one registry still serves an older major/minor)
+#   - weekly (catches upstream tool regressions; installs latest)
+#   - manual dispatch (pin a specific version to test)
+#
+# Not triggered on push/PR — those are validated by validate.yml and
+# real-agent-smoke.yml. This workflow only exercises the artifacts that
+# are already on PyPI / npm.
+
+on:
+  release:
+    types: [published]
+  schedule:
+    # Weekly on Monday at 14:00 UTC (morning Pacific).
+    - cron: "0 14 * * 1"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version spec (e.g., 0.1.4); leave blank for latest."
+        required: false
+        type: string
+
+jobs:
+  pypi-install:
+    name: PyPI install (${{ matrix.os }} · py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9", "3.12", "3.13"]
+        include:
+          - os: windows-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.12"
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Resolve expected version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            # strip leading 'v' if present (v0.1.4 -> 0.1.4)
+            RAW="${{ github.event.release.tag_name }}"
+            V="${RAW#v}"
+          elif [ -n "${{ inputs.version }}" ]; then
+            V="${{ inputs.version }}"
+          else
+            V=""   # weekly/latest run — no assertion on exact version
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "resolved version: '$V'"
+
+      - name: Install anywhere-agents from PyPI
+        shell: bash
+        run: |
+          set -euo pipefail
+          V='${{ steps.version.outputs.version }}'
+          if [ -n "$V" ]; then
+            SPEC="anywhere-agents==$V"
+          else
+            SPEC="anywhere-agents"
+          fi
+          echo "installing $SPEC"
+          # PyPI's simple index can lag a release upload, occasionally past
+          # the first few minutes on a release event. Retry so this workflow
+          # does not require a manual re-run. Bounded to ~6 minutes (happy
+          # path hits attempt 1, so the wider budget only costs on real lag).
+          attempts=24
+          for i in $(seq 1 $attempts); do
+            if python -m pip install --upgrade --force-reinstall --no-cache-dir "$SPEC"; then
+              echo "installed on attempt $i"
+              break
+            fi
+            if [ "$i" -eq "$attempts" ]; then
+              echo "::error::PyPI install failed after $attempts attempts"
+              exit 1
+            fi
+            echo "attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+
+      - name: Verify CLI runs and reports the expected version
+        shell: bash
+        run: |
+          set -euo pipefail
+          V='${{ steps.version.outputs.version }}'
+          OUT=$(anywhere-agents --version)
+          echo "CLI: $OUT"
+          if [ -n "$V" ]; then
+            if ! grep -F -- "$V" <<<"$OUT"; then
+              echo "::error::CLI reports '$OUT' but expected version contains '$V'"
+              exit 1
+            fi
+          fi
+          anywhere-agents --help
+          anywhere-agents --dry-run
+
+  npm-install:
+    name: npm install (${{ matrix.os }} · node${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node-version: ["18", "20", "22"]
+        include:
+          - os: windows-latest
+            node-version: "20"
+          - os: macos-latest
+            node-version: "20"
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Resolve expected version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            RAW="${{ github.event.release.tag_name }}"
+            V="${RAW#v}"
+          elif [ -n "${{ inputs.version }}" ]; then
+            V="${{ inputs.version }}"
+          else
+            V=""
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "resolved version: '$V'"
+
+      - name: Install anywhere-agents from npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          V='${{ steps.version.outputs.version }}'
+          if [ -n "$V" ]; then
+            SPEC="anywhere-agents@$V"
+          else
+            SPEC="anywhere-agents"
+          fi
+          echo "installing $SPEC"
+          # npm's registry metadata can lag on a release event: the version
+          # is published but the runner's edge still returns ETARGET
+          # ("no matching version") for several minutes. v0.7.1 exceeded the
+          # old 3-minute budget and needed a manual re-run, so the budget is
+          # widened. Retry; bounded to ~6 minutes (happy path hits attempt 1).
+          attempts=24
+          for i in $(seq 1 $attempts); do
+            if npm install -g "$SPEC"; then
+              echo "installed on attempt $i"
+              break
+            fi
+            if [ "$i" -eq "$attempts" ]; then
+              echo "::error::npm install failed after $attempts attempts"
+              exit 1
+            fi
+            echo "attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+
+      - name: Verify CLI runs and reports the expected version
+        shell: bash
+        run: |
+          set -euo pipefail
+          V='${{ steps.version.outputs.version }}'
+          OUT=$(anywhere-agents --version)
+          echo "CLI: $OUT"
+          if [ -n "$V" ]; then
+            if ! grep -F -- "$V" <<<"$OUT"; then
+              echo "::error::CLI reports '$OUT' but expected version contains '$V'"
+              exit 1
+            fi
+          fi
+          anywhere-agents --help
+          anywhere-agents --dry-run

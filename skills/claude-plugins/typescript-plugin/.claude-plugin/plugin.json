@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "typescript-plugin",
+  "version": "1.8.6",
+  "description": "TypeScript development - strict types, ESLint, Biome, Bun runtime, debugging, Sentry monitoring, dead code detection",
+  "author": {
+    "name": "Lauri Gates"
+  },
+  "repository": "https://github.com/laurigates/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "typescript",
+    "javascript",
+    "bun",
+    "npm",
+    "publishing",
+    "eslint",
+    "biome",
+    "types",
+    "knip",
+    "dead-code",
+    "debugging",
+    "inspector",
+    "heap-snapshot",
+    "memory-profiling",
+    "sentry",
+    "error-monitoring",
+    "performance-tracing",
+    "observability"
+  ]
+}

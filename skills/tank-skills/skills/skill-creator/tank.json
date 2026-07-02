@@ -1,0 +1,18 @@
+{
+  "name": "@tank/skill-creator",
+  "version": "2.0.0",
+  "description": "Create, evaluate, and improve AI agent skills from books and research. Covers skill anatomy, progressive disclosure, research workflow, writing conventions, evaluation (test cases, grading, iteration), description optimization, quality agents, and validation. Triggers: create skill, new skill, build skill, write skill, update skill, improve skill, evaluate skill, validate skill, SKILL.md, reference file, skill template, domain expertise.",
+  "permissions": {
+    "network": {
+      "outbound": []
+    },
+    "filesystem": {
+      "read": [
+        "**/*"
+      ],
+      "write": []
+    },
+    "subprocess": true
+  },
+  "repository": "https://github.com/tankpkg/skills"
+}

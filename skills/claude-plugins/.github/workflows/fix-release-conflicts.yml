@@ -1,0 +1,16 @@
+name: "Release: Fix release-please conflicts"
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Offset from the top of the hour to avoid scheduling congestion that
+    # caused scheduled runs to fail with startup_failure.
+    - cron: "23,53 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  fix-conflicts:
+    uses: laurigates/.github/.github/workflows/reusable-fix-release-conflicts.yml@main
+    secrets:
+      RELEASE_PLEASE_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}

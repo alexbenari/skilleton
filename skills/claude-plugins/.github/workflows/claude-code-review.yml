@@ -1,0 +1,25 @@
+# This workflow is intentionally DISABLED in the GitHub Actions UI.
+# Rationale: plugin-pr-checks.yml already runs a Claude skill-quality review
+# scoped to the files that changed. Running both duplicates cost and comments.
+# The file is kept in-tree because configure-plugin/skills/configure-claude-plugins
+# dogfoods it as the canonical review workflow for downstream projects — removing
+# it would desync the plugin template from its reference repo.
+# Re-enable via Actions → "Claude: PR review" → Enable workflow if plugin-pr-checks
+# is ever removed or repurposed.
+name: "Claude: PR review"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    uses: laurigates/.github/.github/workflows/reusable-claude-review.yml@main
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    with:
+      plugins: |
+        code-quality-plugin@laurigates-claude-plugins
+        testing-plugin@laurigates-claude-plugins
+      plugin_marketplaces: |
+        https://github.com/laurigates/claude-plugins.git

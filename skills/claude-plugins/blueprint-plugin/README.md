@@ -1,0 +1,452 @@
+# Blueprint Plugin
+
+Blueprint Development methodology for Claude Code - structured feature development with PRDs, PRPs, and work-orders.
+
+## Flow
+
+See [`docs/flow.md`](docs/flow.md) for a diagram of how the skills fit together.
+
+## Overview
+
+This plugin provides a documentation-first development workflow:
+
+```
+PRD (Product Requirements) → PRP (Product Requirement Prompt) → Work-Order → Implementation
+```
+
+## Skills
+
+### Core Skills
+
+| Skill | Description |
+|-------|-------------|
+| `blueprint-development` | Core methodology for generating project-specific skills and commands from PRDs |
+| `confidence-scoring` | Assess quality of PRPs and work-orders for execution readiness |
+| `feature-tracking` | Track implementation status against requirements with hierarchical FR codes |
+| `document-linking` | Unified ID system connecting PRDs, ADRs, PRPs, work-orders, and GitHub issues |
+
+### Derive Skills
+
+| Skill | Description |
+|-------|-------------|
+| `blueprint-init` | Initialize Blueprint Development structure in a project |
+| `blueprint-derive-plans` | Derive PRDs, ADRs, and PRPs from git history and existing code |
+| `blueprint-derive-rules` | Derive rules from git commit decisions (newer overrides older) |
+| `blueprint-derive-tests` | Derive test regression plans from git history by identifying untested fix/feature commits |
+
+### Workflow Skills
+
+| Skill | Description |
+|-------|-------------|
+| `blueprint-generate-rules` | Generate project-specific rules from PRDs |
+| `blueprint-work-order` | Create work-order with minimal context for subagent execution |
+| `blueprint-prp-create` | Create a PRP with systematic research and validation gates |
+| `blueprint-prp-execute` | Execute a PRP with validation loop, TDD workflow, and quality gates |
+| `blueprint-curate-docs` | Curate documentation for ai_docs to optimize AI context |
+| `blueprint-adr-validate` | Validate ADR cross-references, detect domain conflicts, and update superseded ADRs |
+| `blueprint-promote` | Promote a child workspace's status into the root monorepo's portfolio tracker |
+| `blueprint-sync` | Sync generated rules / CLAUDE.md back from PRDs after edits |
+| `blueprint-story-audit` | Read-only audit fusing capability map ↔ PRD stories ↔ tests into a tier-ranked gap report. Writes `docs/blueprint/audits/<date>-story-audit.md` |
+| `blueprint-story-reconcile` | PRD-only reconciliation pass against the latest story-audit. Adds `⚠️`/`❌`/`🆕` markers and a wholesale `## Known Drift` section; confirms each PRD interactively |
+
+### Listing Skills
+
+| Skill | Description |
+|-------|-------------|
+| `blueprint-adr-list` | List all ADRs with title, status, date, and domain |
+| `blueprint-docs-list` | List blueprint documents (ADRs, PRDs, PRPs) with metadata |
+
+### Management Skills
+
+| Skill | Description |
+|-------|-------------|
+| `blueprint-execute` | **Smart meta command** - Analyzes repository state and executes the next logical blueprint action (idempotent) |
+| `blueprint-status` | Show blueprint version, configuration, and traceability report |
+| `blueprint-upgrade` | Upgrade to latest blueprint format |
+| `blueprint-rules` | Manage modular rules |
+| `blueprint-claude-md` | Update CLAUDE.md from blueprint artifacts |
+| `blueprint-sync-ids` | Assign IDs to all documents, build traceability registry |
+| `blueprint-workspace-scan` | Discover child blueprints in a monorepo and refresh the root's `workspaces.children` registry with cached feature-tracker stats |
+| `blueprint-docs-currency` | Advisory discipline for same-commit landing of code and its docs (API, format specs, error enums, milestone status, ADRs); research-promotion workflow from `tmp/` to `docs/` |
+
+### Feature Tracking Skills
+
+| Skill | Description |
+|-------|-------------|
+| `blueprint-feature-tracker-status` | Display feature completion statistics |
+| `blueprint-feature-tracker-sync` | Synchronize tracker with TODO.md, generate progress summary |
+
+## Workflow
+
+### Smart Mode: Using `/blueprint:execute`
+
+The easiest way to use Blueprint Development is with the **idempotent meta command**:
+
+```bash
+/blueprint:execute
+```
+
+This command:
+- ✅ **Analyzes** current repository state
+- ✅ **Determines** what needs to happen next
+- ✅ **Executes** the appropriate action automatically
+- ✅ **Safe to run anytime** - idempotent and smart
+
+**Perfect for:**
+- Morning start routine (figures out where you left off)
+- After pulling changes (checks for stale content, upgrades)
+- When stuck or unsure (always knows what to do next)
+- Periodic check-ins (shows progress, suggests next work)
+
+The command automatically handles:
+1. Initialization (if not set up)
+2. Upgrades (when available)
+3. Stale content detection and regeneration
+4. PRP execution (when ready)
+5. Work-order execution (when pending)
+6. Feature tracking sync
+7. Status and next steps (when caught up)
+
+**Example usage:**
+```bash
+# First time in a project
+/blueprint:execute  # → Runs /blueprint:init
+
+# After creating PRDs
+/blueprint:execute  # → Runs /blueprint:generate-rules
+
+# When PRPs are ready
+/blueprint:execute  # → Prompts to execute PRPs
+
+# When everything is current
+/blueprint:execute  # → Shows status and options
+```
+
+---
+
+### Manual Mode: Step-by-Step Workflow
+
+You can also run individual commands directly when you know exactly what you want:
+
+### 1. Initialize Blueprint Development
+
+```bash
+/blueprint:init
+```
+
+Creates the directory structure:
+```
+docs/
+├── blueprint/
+│   ├── manifest.json        # Blueprint configuration
+│   ├── feature-tracker.json # Progress tracking (optional)
+│   └── work-orders/         # Task packages for subagents
+│       ├── completed/
+│       └── archived/
+├── prds/                    # Product Requirements Documents
+├── adrs/                    # Architecture Decision Records
+└── prps/                    # Product Requirement Prompts
+```
+
+### 2. Derive Documentation
+
+For existing projects, derive documentation from codebase:
+
+```bash
+/blueprint:derive-plans  # Derive PRDs, ADRs, and PRPs from git history and docs
+```
+
+These commands analyze existing documentation and code patterns, asking clarifying questions to fill gaps.
+
+**For established projects with git history**, use the comprehensive derive command:
+
+```bash
+/blueprint:derive-plans    # Derive PRDs, ADRs, and PRPs from git history
+```
+
+This command:
+- Analyzes git commit history (conventional commits, scopes, issue references)
+- Extracts features from grouped commits
+- Identifies architecture decisions from technology changes
+- Suggests future work from TODOs and open issues
+- Generates all documentation with confidence scores
+
+**For identifying untested bug fixes and generating a test backlog**:
+
+```bash
+/blueprint:derive-tests    # Derive test regression plans from git history
+```
+
+This command:
+- Identifies `fix:` and `feat:` commits lacking corresponding test changes
+- Classifies coverage gaps by severity (Critical/High/Medium/Low)
+- Generates a TRP (Test Regression Plan) document in `docs/trps/`
+- Suggests prioritized test creation order
+
+**For deriving rules from significant commit decisions**:
+
+```bash
+/blueprint:derive-rules    # Derive rules from git commit log decisions
+```
+
+This command:
+- Scans git commits for significant decisions and patterns
+- Generates Claude rules from commit-evident decisions
+- Newer commits override older ones when conflicts exist
+- Links rules to source commits for traceability
+
+### 3. Write or Refine PRDs
+
+Create or refine PRDs in `docs/prds/` documenting:
+- Feature requirements and user stories
+- Technical decisions and architecture
+- TDD requirements and test strategies
+- Success criteria and quality standards
+
+### 4. Generate Project Rules
+
+```bash
+/blueprint:generate-rules
+```
+
+Extracts patterns from PRDs and generates project-specific rules:
+- Architecture patterns
+- Testing strategies
+- Implementation guides
+- Quality standards
+
+### 5. Create Work-Orders
+
+```bash
+/blueprint:work-order
+```
+
+Generates isolated task packages with minimal context for subagent execution.
+
+### 6. Execute with TDD
+
+```bash
+/blueprint:prp-execute
+```
+
+Runs the implementation with RED → GREEN → REFACTOR workflow.
+
+## Document Traceability
+
+All blueprint documents are connected through a unified ID system, enabling full traceability from requirements to implementation.
+
+### ID Formats
+
+| Document | Format | Example |
+|----------|--------|---------|
+| PRD | `PRD-NNN` | `PRD-001` |
+| ADR | `ADR-NNNN` | `ADR-0003` |
+| PRP | `PRP-NNN` | `PRP-007` |
+| Work-Order | `WO-NNN` | `WO-042` |
+| TRP | `TRP-NNN` | `TRP-001` |
+
+### Automatic ID Assignment
+
+IDs are automatically generated when:
+- Creating documents via `/blueprint:derive-plans`, `/blueprint:prp-create`
+- Running `/blueprint:sync-ids` to batch-assign IDs to existing documents
+- Accessing documents without IDs (auto-assigned on first access)
+
+### Cross-Linking
+
+Documents link to each other via frontmatter:
+
+```yaml
+---
+id: PRP-002
+implements:
+  - PRD-001
+relates-to:
+  - ADR-0003
+github-issues:
+  - 42
+---
+```
+
+### GitHub Integration
+
+| Artifact | Format |
+|----------|--------|
+| Issue title | `[PRD-001] Feature name` |
+| Commit scope | `feat(PRD-001): description` |
+| PR reference | `Implements PRD-001, Fixes #42` |
+
+### Traceability Report
+
+Run `/blueprint:status` to see:
+- Documents with/without IDs
+- Documents linked to GitHub issues
+- Orphan documents (no issues)
+- Orphan issues (no linked docs)
+- Broken links
+
+### Sync IDs
+
+```bash
+/blueprint:sync-ids              # Assign IDs to all documents
+/blueprint:sync-ids --dry-run    # Preview changes
+/blueprint:sync-ids --link-issues # Also create GitHub issues for orphans
+```
+
+## Feature Tracking (Optional)
+
+Track implementation progress against requirements documents using hierarchical FR codes.
+
+### Enable During Init
+
+Feature tracking can be enabled during `/blueprint:init`. When enabled, it creates:
+- `docs/blueprint/feature-tracker.json` - Main tracker file
+
+### Feature Tracker Structure
+
+The tracker uses hierarchical FR codes mapped to your requirements:
+
+```json
+{
+  "features": {
+    "FR1": {
+      "name": "Game Setup",
+      "features": {
+        "FR1.1": { "name": "Window Config", "status": "complete" },
+        "FR1.2": { "name": "Mode Selection", "status": "in_progress" }
+      }
+    }
+  },
+  "statistics": {
+    "total_features": 42,
+    "complete": 22,
+    "completion_percentage": 52.4
+  }
+}
+```
+
+### Status Values
+
+- `not_started` - No implementation
+- `in_progress` - Active work
+- `partial` - Some sub-features complete
+- `complete` - Fully implemented
+- `blocked` - Missing dependencies
+
+### Sync Targets
+
+The tracker syncs with:
+- `TODO.md` - Checkbox states
+
+Use `--summary` flag to generate a human-readable progress report:
+```bash
+/blueprint:feature-tracker-sync --summary
+```
+
+### Quick Commands
+
+```bash
+# View statistics
+jq '.statistics' docs/blueprint/feature-tracker.json
+
+# List incomplete features
+jq '.. | objects | select(.status == "not_started") | .name' docs/blueprint/feature-tracker.json
+
+# Show PRD status
+jq '.prds | to_entries | .[] | "\(.key): \(.value.status)"' docs/blueprint/feature-tracker.json
+```
+
+## Monorepo Support (v3.3)
+
+Blueprint 3.3 adds first-class monorepo support so a repo-root blueprint can act
+as a **portfolio index** over child workspaces (per-project blueprints in
+subdirectories).
+
+### Roles
+
+Each manifest declares a `workspaces.role`:
+
+| Role | Written by | Meaning |
+|------|------------|---------|
+| `root` | top-level manifest in a monorepo | Owns `workspaces.children[]` registry |
+| `child` | a blueprint under an ancestor root | Carries `root_relative_path` back to root |
+| *(absent)* | standalone project | No monorepo block; existing 3.2 behaviour |
+
+### Portfolio Feature Tracking
+
+Root `feature-tracker.json` can link portfolio FRs down to child FRs:
+
+```json
+"features": {
+  "FR1.1": {
+    "name": "Motion-reactive lighting",
+    "status": "partial",
+    "phase": "phase-1",
+    "implemented_by": [
+      { "workspace": "projects/esp32-lamp", "ref": "FR3.2" },
+      { "workspace": "projects/pir-bridge", "ref": "FR1" }
+    ]
+  }
+}
+```
+
+`/blueprint:feature-tracker-sync` at the root reads each child's tracker and
+**derives** the root status from the linked children (all complete → complete,
+any blocked → blocked, any in_progress/mixed → partial, all not_started →
+not_started).
+
+### Cross-Workspace References
+
+IDs remain per-workspace. Cross-workspace references use these forms:
+
+| Form | Meaning |
+|------|---------|
+| `ADR-NNN` | Local to the current workspace |
+| `projects/foo/ADR-NNN` | Sibling/child workspace (path relative to the root) |
+| `/ADR-NNN` | The monorepo root's ID space |
+
+`/blueprint:adr-validate` resolves these forms and flags unresolved ones as
+warnings.
+
+### Discovery
+
+`/blueprint:workspace-scan` walks the filesystem, finds every
+`docs/blueprint/manifest.json` under the root, and refreshes
+`workspaces.children` with cached rollup stats. It also runs automatically at
+the top of `/blueprint:status` and `/blueprint:feature-tracker-sync` when the
+active manifest has `workspaces.role == "root"`.
+
+### Migration
+
+Existing 3.2 projects migrate with `/blueprint:upgrade`. The v3.2→v3.3
+migration is **purely additive**: it only adds the `workspaces` block (or omits
+it for standalone projects) and bumps `format_version`. Nothing is moved,
+renamed, or deleted.
+
+## Hooks
+
+### Validation Hooks (command)
+
+| Hook | Event | Target | Purpose |
+|------|-------|--------|---------|
+| `validate-prp-frontmatter.sh` | PreToolUse | `Write\|Edit(docs/prps/**)` | Structural validation of PRP frontmatter |
+| `validate-adr-frontmatter.sh` | PreToolUse | `Write\|Edit(docs/adrs/**)` | Structural validation of ADR frontmatter |
+| `check-prp-readiness.sh` | PreToolUse | `Skill(prp-execute)` | Confidence score, required sections, file references |
+
+### Quality Hooks (agent)
+
+| Hook | Event | Target | Purpose |
+|------|-------|--------|---------|
+| PRP Content Quality | PreToolUse | `Skill(prp-execute)` | LLM-powered evaluation of PRP content quality before execution |
+
+The PRP content quality agent hook runs alongside the structural command hook. The command hook validates structure (confidence >= 7/10, required sections, file references). The agent hook evaluates content quality (specificity of requirements, testability of acceptance criteria, edge case coverage).
+
+## Installation
+
+```bash
+/plugin install blueprint-plugin@laurigates-claude-plugins
+```
+
+## License
+
+MIT

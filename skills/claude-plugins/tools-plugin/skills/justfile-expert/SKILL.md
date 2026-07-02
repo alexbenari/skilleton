@@ -1,0 +1,429 @@
+---
+created: 2025-12-16
+modified: 2026-05-09
+reviewed: 2026-02-06
+name: justfile-expert
+description: Just command runner expertise — Justfile syntax, recipes, parameters, modules, shebang recipes. Use when authoring justfiles, project commands, or task automation.
+user-invocable: false
+allowed-tools: Bash, BashOutput, Grep, Glob, Read, Write, Edit, TodoWrite
+model: sonnet
+---
+
+# Justfile Expert
+
+Expert knowledge for Just command runner, recipe development, and task automation with focus on cross-platform compatibility and project standardization.
+
+## When to Use This Skill
+
+| Use this skill when... | Use alternative when... |
+|------------------------|------------------------|
+| Creating/editing justfiles for task automation | Need build system with incremental compilation → Make |
+| Writing cross-platform project commands | Need tool version management bundled → mise tasks |
+| Adding shebang recipes (Python, Node, Ruby, etc.) | Already using mise for all project tooling |
+| Configuring dotenv loading and settings | Simple one-off shell scripts → Bash directly |
+| Setting up CI/CD with just recipes | Project already has extensive Makefile |
+| Standardizing recipes across projects | Need Docker-specific workflows → docker-compose |
+
+## Core Expertise
+
+**Command Runner Mastery**
+- Justfile syntax and recipe structure
+- Cross-platform task automation (Linux, macOS, Windows)
+- Parameter handling and argument forwarding
+- Module organization for large projects
+
+**Recipe Development Excellence**
+- Recipe patterns for common operations
+- Dependency management between recipes
+- Shebang recipes for complex logic
+- Environment variable integration
+
+**Project Standardization**
+- Golden template with standard naming and section structure
+- Self-documenting project operations
+- Portable patterns across projects
+- Integration with CI/CD pipelines
+
+## Recipe Naming Conventions
+
+| Rule | Pattern | Examples |
+|------|---------|---------|
+| Hyphen-separated | `word-word` | `test-unit`, `format-check` |
+| Verb-first (actions) | `verb-object` | `lint`, `build`, `clean` |
+| Noun-first (categories) | `noun-verb` | `db-migrate`, `docs-serve` |
+| Private prefix | `_name` | `_generate-secrets`, `_setup` |
+| `-check` suffix | Read-only verification | `format-check` |
+| `-fix` suffix | Auto-correction | `lint-fix`, `check-fix` |
+| `-watch` suffix | Watch mode | `test-watch`, `docs-watch` |
+| Modifiers after base | `base-modifier` | `build-release` (not `release-build`) |
+
+## Semantic Workflow Recipes
+
+Standard composite recipes with defined meanings:
+
+| Recipe | Composition | Purpose |
+|--------|-------------|---------|
+| `check` | `format-check` + `lint` + `typecheck` | Code quality only, no tests |
+| `pre-commit` | `format-check` + `lint` + `typecheck` + `test-unit` | Fast, non-mutating validation |
+| `ci` | `check` + `test-coverage` + `build` | Full CI simulation |
+| `clean` | Remove build artifacts | Partial cleanup |
+| `clean-all` | `clean` + remove deps/caches | Full cleanup |
+
+```just
+# Composite: code quality only (no tests)
+check: format-check lint typecheck
+
+# Pre-commit checks (fast, non-mutating)
+pre-commit: format-check lint typecheck test-unit
+    @echo "Pre-commit checks passed"
+
+# Full CI simulation
+ci: check test-coverage build
+    @echo "CI simulation passed"
+
+# Clean build artifacts
+clean:
+    rm -rf dist build .next
+
+# Clean everything including deps
+clean-all: clean
+    rm -rf node_modules .venv __pycache__
+```
+
+## Key Capabilities
+
+**Recipe Parameters**
+- **Required parameters**: `recipe param:` - must be provided
+- **Default values**: `recipe param="default":` - optional with fallback
+- **Variadic `+`**: `recipe +FILES:` - one or more arguments
+- **Variadic `*`**: `recipe *FLAGS:` - zero or more arguments
+- **Environment export**: `recipe $VAR:` - parameter as env var
+
+**Settings Configuration**
+- **`set dotenv-load`**: Load `.env` file automatically
+- **`set positional-arguments`**: Enable `$1`, `$2` syntax
+- **`set export`**: Export all variables as env vars
+- **`set shell`**: Custom shell interpreter
+- **`set quiet`**: Suppress command echoing
+
+**Recipe Attributes**
+- **`[private]`**: Hide from `--list` output
+- **`[no-cd]`**: Don't change directory
+- **`[no-exit-message]`**: Suppress exit messages
+- **`[unix]`** / **`[windows]`** / **`[linux]`** / **`[macos]`**: Platform-specific recipes
+- **`[positional-arguments]`**: Per-recipe positional args
+- **`[confirm]`** / **`[confirm("message")]`**: Require confirmation before running
+- **`[group: "name"]`**: Group recipes in `--list` output
+- **`[working-directory: "path"]`**: Run in specific directory
+
+**Module System**
+- **`mod name`**: Declare submodule
+- **`mod name 'path'`**: Custom module path
+- **Invocation**: `just module::recipe` or `just module recipe`
+
+## Essential Syntax
+
+**Basic Recipe Structure**
+```just
+# Comment describes the recipe
+recipe-name:
+    command1
+    command2
+```
+
+**Recipe with Parameters**
+```just
+build target:
+    @echo "Building {{target}}..."
+    cd {{target}} && make
+
+test *args:
+    uv run pytest {{args}}
+```
+
+**Recipe Dependencies**
+```just
+default: build test
+
+build: _setup
+    cargo build --release
+
+_setup:
+    @echo "Setting up..."
+```
+
+**Variables and Interpolation**
+```just
+version := "1.0.0"
+project := env('PROJECT_NAME', 'default')
+
+info:
+    @echo "Project: {{project}} v{{version}}"
+```
+
+**Conditional Recipes**
+```just
+[unix]
+open:
+    xdg-open http://localhost:8080
+
+[windows]
+open:
+    start http://localhost:8080
+```
+
+## Standard Recipes
+
+Every project should provide these standard recipes, organized by section:
+
+```just
+# Justfile - Project task runner
+# Run `just` or `just help` to see available recipes
+
+set dotenv-load
+set positional-arguments
+
+# Default recipe - show help
+default:
+    @just --list
+
+# Show available recipes with descriptions
+help:
+    @just --list --unsorted
+
+####################
+# Development
+####################
+
+# Start development environment
+dev:
+    # bun run dev / uv run uvicorn app:app --reload / skaffold dev
+
+# Build for production
+build:
+    # bun run build / cargo build --release / docker build
+
+# Clean build artifacts
+clean:
+    # rm -rf dist build .next
+
+####################
+# Code Quality
+####################
+
+# Run linter (read-only)
+lint *args:
+    # bun run lint / uv run ruff check {{args}}
+
+# Auto-fix lint issues
+lint-fix:
+    # bun run lint:fix / uv run ruff check --fix .
+
+# Format code (mutating)
+format *args:
+    # bun run format / uv run ruff format {{args}}
+
+# Check formatting without modifying (non-mutating)
+format-check *args:
+    # bun run format:check / uv run ruff format --check {{args}}
+
+# Type checking
+typecheck:
+    # bunx tsc --noEmit / uv run basedpyright
+
+####################
+# Testing
+####################
+
+# Run all tests
+test *args:
+    # bun test {{args}} / uv run pytest {{args}}
+
+# Run unit tests only
+test-unit *args:
+    # bun test --grep unit {{args}} / uv run pytest -m unit {{args}}
+
+####################
+# Workflows
+####################
+
+# Composite: code quality (no tests)
+check: format-check lint typecheck
+
+# Pre-commit checks (fast, non-mutating)
+pre-commit: format-check lint typecheck test-unit
+    @echo "Pre-commit checks passed"
+
+# Full CI simulation
+ci: check test-coverage build
+    @echo "CI simulation passed"
+```
+
+### Section Structure
+
+Organize recipes into these standard sections:
+
+| Section | Recipes | Purpose |
+|---------|---------|---------|
+| **Metadata** | `default`, `help` | Discovery and navigation |
+| **Development** | `dev`, `build`, `clean`, `start`, `stop` | Core dev cycle |
+| **Code Quality** | `lint`, `lint-fix`, `format`, `format-check`, `typecheck` | Code standards |
+| **Testing** | `test`, `test-unit`, `test-integration`, `test-e2e`, `test-watch` | Test tiers |
+| **Workflows** | `check`, `pre-commit`, `ci` | Composite operations |
+| **Dependencies** | `install`, `update` | Package management |
+| **Database** | `db-migrate`, `db-seed`, `db-reset` | Data operations |
+| **Kubernetes** | `skaffold`, `dev-k8s` | Container orchestration |
+| **Documentation** | `docs`, `docs-serve` | Project docs |
+
+Use `####################` comment blocks as section dividers for readability.
+
+## Common Patterns
+
+**Setup/Bootstrap Recipe**
+```just
+# Initial project setup
+setup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Installing dependencies..."
+    uv sync
+    echo "Setting up pre-commit..."
+    pre-commit install
+    echo "Done!"
+```
+
+**Docker Integration**
+```just
+# Build container image
+docker-build tag="latest":
+    docker build -t {{project}}:{{tag}} .
+
+# Run container
+docker-run tag="latest" *args:
+    docker run --rm -it {{project}}:{{tag}} {{args}}
+
+# Push to registry
+docker-push tag="latest":
+    docker push {{registry}}/{{project}}:{{tag}}
+```
+
+**Database Operations**
+```just
+# Run database migrations
+db-migrate:
+    uv run alembic upgrade head
+
+# Create new migration
+db-revision message:
+    uv run alembic revision --autogenerate -m "{{message}}"
+
+# Reset database
+db-reset:
+    uv run alembic downgrade base
+    uv run alembic upgrade head
+```
+
+**CI/CD Recipes**
+```just
+# Full CI check (lint + test + build)
+ci: lint test build
+    @echo "CI passed!"
+
+# Release workflow
+release version:
+    git tag -a "v{{version}}" -m "Release {{version}}"
+    git push origin "v{{version}}"
+```
+
+## MCP Integration (just-mcp)
+
+The `just-mcp` MCP server enables AI assistants to discover and execute justfile recipes through the Model Context Protocol, reducing context waste since the AI doesn't need to read the full justfile.
+
+**Installation:**
+```bash
+# Via npm
+npx just-mcp --stdio
+
+# Via pip/uvx
+uvx just-mcp --stdio
+
+# Via cargo
+cargo install just-mcp
+```
+
+**Claude Desktop configuration (`.claude/mcp.json`):**
+```json
+{
+  "mcpServers": {
+    "just-mcp": {
+      "command": "npx",
+      "args": ["-y", "just-mcp", "--stdio"]
+    }
+  }
+}
+```
+
+**Available MCP Tools:**
+- `list_recipes` - Discover all recipes and parameters
+- `run_recipe` - Execute a recipe with arguments
+- `get_recipe_info` - Get detailed recipe documentation
+- `validate_justfile` - Check for syntax errors
+
+## Agentic Optimizations
+
+| Context | Command |
+|---------|---------|
+| List all recipes | `just --list` or `just -l` |
+| Dry run (preview) | `just --dry-run recipe` |
+| Show variables | `just --evaluate` |
+| JSON recipe list | `just --dump --dump-format json` |
+| Verbose execution | `just --verbose recipe` |
+| Specific justfile | `just --justfile path recipe` |
+| Working directory | `just --working-directory path recipe` |
+| Choose interactively | `just --choose` |
+
+## Best Practices
+
+**Recipe Development Workflow**
+1. **Name clearly**: Use descriptive, verb-based names (`build`, `test`, `deploy`)
+2. **Document always**: Add comment before each recipe
+3. **Use defaults**: Provide sensible default parameter values
+4. **Group logically**: Organize with section comments
+5. **Hide internals**: Mark helper recipes as `[private]`
+6. **Test portability**: Verify on all target platforms
+
+**Critical Guidelines**
+- Always provide `default` recipe pointing to help
+- Use `@` prefix to suppress command echo when appropriate
+- Use shebang recipes for multi-line logic
+- Prefer `set dotenv-load` for configuration
+- Use modules for large projects (>20 recipes)
+- Include variadic `*args` for passthrough flexibility
+- Quote all variables in shell commands
+
+## Comparison with Alternatives
+
+| Feature | Just | Make | mise tasks |
+|---------|------|------|------------|
+| Syntax | Simple, clear | Complex, tabs required | YAML |
+| Dependencies | Built-in | Built-in | Manual |
+| Parameters | Full support | Limited | Full support |
+| Cross-platform | Excellent | Good | Excellent |
+| Tool versions | No | No | Yes |
+| Error messages | Clear | Cryptic | Clear |
+| Installation | Single binary | Pre-installed | Requires mise |
+
+**When to use Just:**
+- Cross-project standard recipes
+- Simple, readable task automation
+- No tool version management needed
+
+**When to use mise tasks:**
+- Project-specific with tool version pinning
+- Already using mise for tool management
+
+**When to use Make:**
+- Legacy projects with existing Makefiles
+- Build systems requiring incremental compilation
+
+For the golden justfile template, detailed syntax reference, advanced patterns, and troubleshooting, see [REFERENCE.md](REFERENCE.md).

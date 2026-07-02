@@ -1,0 +1,37 @@
+{
+  "name": "anywhere-agents",
+  "version": "0.7.8",
+  "description": "Install the anywhere-agents AI agent config (AGENTS.md, skills, guard hook, settings) into any project.",
+  "homepage": "https://github.com/yzhao062/anywhere-agents",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yzhao062/anywhere-agents.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yzhao062/anywhere-agents/issues"
+  },
+  "author": "Yue Zhao",
+  "license": "Apache-2.0",
+  "keywords": [
+    "ai",
+    "agents",
+    "claude-code",
+    "codex",
+    "config",
+    "bootstrap",
+    "dotfiles",
+    "agent-stack"
+  ],
+  "bin": {
+    "anywhere-agents": "bin/anywhere-agents.js"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14"
+  },
+  "preferGlobal": false
+}

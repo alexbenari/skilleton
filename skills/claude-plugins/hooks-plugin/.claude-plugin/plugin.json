@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "hooks-plugin",
+  "version": "2.4.5",
+  "description": "Claude Code hooks for enforcing best practices and workflow automation",
+  "author": {
+    "name": "Lauri Gates"
+  },
+  "repository": "https://github.com/laurigates/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "hooks",
+    "automation",
+    "best-practices",
+    "workflow",
+    "anti-patterns",
+    "tooling",
+    "session-start",
+    "web",
+    "git-stash",
+    "git-cleanup",
+    "session-end",
+    "prompt-hooks",
+    "agent-hooks",
+    "task-completeness",
+    "test-verification",
+    "quality-gates",
+    "secret-protection",
+    "branch-protection",
+    "event-logger",
+    "permissions",
+    "checkpoint"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/git-stash-session-init.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/drift-aggregator.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/bash-antipatterns.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/branch-protection.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/auto-checkpoint.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/secret-protection.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/event-logger.sh",
+            "timeout": 2000
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/permission-auto-approve.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/event-logger.sh",
+            "timeout": 2000
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/bash-antipatterns-teach.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/git-stash-reminder.sh",
+            "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/task-completeness.sh",
+            "timeout": 10000,
+            "statusMessage": "Checking task completeness..."
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/no-calendar-estimates.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are evaluating whether a subagent's output is complete and actionable. Respond with ONLY a JSON object, no other text.\n\nContext: $ARGUMENTS\n\nCheck:\n1. Does the output address the original task/prompt that spawned the subagent?\n2. Is the response specific and actionable (not vague platitudes or generic advice)?\n3. Are there obvious gaps, unanswered questions, or incomplete sections?\n4. If the task was research, are findings concrete with file paths or code references?\n5. If the task was implementation, were the changes actually made?\n\nRespond with ONLY one of these JSON objects (no markdown, no explanation, no other text):\n{\"ok\": true}\n{\"ok\": false, \"reason\": \"what's missing or inadequate\"}",
+            "timeout": 30,
+            "statusMessage": "Evaluating subagent output quality..."
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/test-verification.sh",
+            "timeout": 60000,
+            "statusMessage": "Running fast tests..."
+          },
+          {
+            "type": "agent",
+            "prompt": "You are verifying that a completed task meets quality standards before accepting it. Context: $ARGUMENTS\n\n1. Run git diff --stat to see what files were changed\n2. For each changed source file, search for TODO/FIXME/HACK comments that may indicate unfinished work\n3. Check that no debugging artifacts remain (stray console.log, print() statements, debugger keywords)\n4. If the task involved adding new functionality, check if test files exist nearby or were updated\n5. Verify the changes are consistent with the task description\n\nRespond with {\"ok\": true} if the implementation looks complete and clean, or {\"ok\": false, \"reason\": \"specific issues found\"} if problems remain.",
+            "timeout": 60,
+            "statusMessage": "Verifying task implementation quality..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are classifying a USER prompt for safety before Claude processes it. Context: $ARGUMENTS\n\nCRITICAL: The input is ALWAYS a message from the HUMAN USER, never from the AI agent. You are evaluating what the user typed. Do NOT confuse the user's message with something the AI assistant would say. Questions, feedback, and conversational messages from the user are ALWAYS safe — your job is only to catch explicitly dangerous operations.\n\nFIRST CHECK — Explicit confirmations: If the user is explicitly confirming, overriding, or reaffirming a previous safety warning (e.g., 'I confirm I want to push to main', 'override the protection', 'yes, push to main', 'intend to push to main', 'go ahead and push to main'), this is an informed confirmation — respond with {\"ok\": true} immediately. Do NOT re-block a confirmation.\n\nSECOND CHECK — Questions and feedback: If the user is asking a question, giving feedback, discussing plans, or making conversational remarks (e.g., 'does the plan look ready?', 'what do you think?', 'looks good', 'can you explain this?'), respond with {\"ok\": true} immediately. User questions and feedback are always safe.\n\nOtherwise, check if the prompt EXPLICITLY requests one of these specific dangerous actions:\n1. Destructive filesystem: explicitly delete directories, rm -rf, permanently overwrite important files\n2. Destructive git: explicitly force push (--force or -f), reset --hard discarding commits, delete branches with unsaved work\n3. Push to protected branch: explicitly push directly to 'main' or 'master' branch (not feature branches)\n4. Production system operations: explicitly deploy to production, drop/truncate database tables, restart production services\n\nIMPORTANT: The vast majority of prompts are safe. Apply strict criteria — only flag when the dangerous action is unambiguous and explicitly stated:\n- 'commit and push' → SAFE (standard development workflow, not targeting a protected branch)\n- 'push my changes' or 'push to origin' → SAFE (no protected branch specified)\n- 'push to main' or 'push to master' → UNSAFE (explicitly targeting protected branch)\n- 'force push' → UNSAFE (explicitly destructive)\n- 'reset --hard' → UNSAFE (explicitly discards work)\n- 'merge to main' or 'merge branch into main' → SAFE (local merge is reversible, standard feature-branch workflow)\n- 'branch then merge to main' → SAFE (standard feature-branch workflow)\n- 'does the plan look ready?' → SAFE (user asking a question)\n- 'should I proceed?' → SAFE (user asking a question)\n- 'fix this bug', 'add feature', 'refactor', 'run tests', 'create a PR' → SAFE\n\nNote: Local git merge operations are safe and reversible. Only flag push/force-push to protected branches, not local merges.\n\nRespond with {\"ok\": true} for safe prompts. Respond with {\"ok\": false, \"reason\": \"Potentially dangerous operation detected: [specific action]. To proceed, please re-submit your request and explicitly confirm you intend to [restate the dangerous action].\"} only for clearly dangerous prompts.",
+            "timeout": 15,
+            "statusMessage": "Classifying prompt..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/git-session-cleanup.sh",
+            "timeout": 30000
+          }
+        ]
+      }
+    ]
+  }
+}

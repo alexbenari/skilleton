@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "rust-plugin",
+  "version": "1.3.4",
+  "description": "Rust development - cargo, clippy, testing, memory safety",
+  "keywords": [
+    "rust",
+    "cargo",
+    "clippy",
+    "memory-safety",
+    "testing"
+  ]
+}

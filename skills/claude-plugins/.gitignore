@@ -1,0 +1,38 @@
+# Git worktrees created by agent workflows
+/worktrees/
+.claude/worktrees/
+
+# Claude Code runtime state
+.claude/scheduled_tasks.lock
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# git-repo-agent
+git-repo-agent/uv.lock
+
+# Eval results (transient run data)
+**/eval-results/
+
+# Temporary files
+tmp/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+
+# Blueprint work-orders (per-task scratch; may contain sensitive details)
+docs/blueprint/work-orders/

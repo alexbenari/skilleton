@@ -1,0 +1,170 @@
+---
+created: 2025-12-22
+modified: 2026-05-09
+reviewed: 2025-12-22
+description: "Interactive selector for infrastructure standards. Use when setting up specific components or building infrastructure incrementally instead of running /configure:all."
+allowed-tools: Glob, Grep, Read, Write, Edit, Bash, AskUserQuestion, TodoWrite, SlashCommand
+args: "[--check-only] [--fix]"
+argument-hint: "[--check-only] [--fix]"
+name: configure-select
+---
+
+# /configure:select
+
+Interactively select which infrastructure standards checks to run.
+
+## When to Use This Skill
+
+| Use this skill when... | Use another approach when... |
+|------------------------|------------------------------|
+| Setting up selected components interactively | Running all components (use `/configure:all`) |
+| Choosing specific standards to implement | Checking status only (use `/configure:status`) |
+| Customizing configuration scope for project | Single component needed (use specific `/configure:X` skill) |
+| User wants control over which components to configure | Automated full setup preferred |
+| Building configuration incrementally | Complete infrastructure setup needed immediately |
+
+## Context
+
+- Project standards: !`find . -maxdepth 1 -name \'.project-standards.yaml\'`
+- Project type: !`grep -m1 "^project_type:" .project-standards.yaml`
+- Has terraform: !`find . -maxdepth 2 \( -name '*.tf' -o -type d -name 'terraform' \) -print -quit`
+- Has package.json: !`find . -maxdepth 1 -name \'package.json\'`
+- Has pyproject.toml: !`find . -maxdepth 1 -name \'pyproject.toml\'`
+- Has Cargo.toml: !`find . -maxdepth 1 -name \'Cargo.toml\'`
+
+## Parameters
+
+Parse from `$ARGUMENTS`:
+
+- `--check-only`: Report status without offering fixes (CI/CD mode)
+- `--fix`: Apply fixes automatically to all selected components
+
+## Execution
+
+Execute this interactive component selection workflow:
+
+### Step 1: Detect project type
+
+1. Read `.project-standards.yaml` if it exists (check `project_type` field)
+2. Auto-detect from file structure:
+   - **infrastructure**: Has `terraform/`, `helm/`, `argocd/`, or `*.tf` files
+   - **frontend**: Has `package.json` with vue/react dependencies
+   - **python**: Has `pyproject.toml` or `requirements.txt`
+   - **rust**: Has `Cargo.toml`
+3. Report detected type to user
+
+### Step 2: Present component selection
+
+Use AskUserQuestion with multiSelect to present four category-based questions:
+
+**Question 1: CI/CD & Version Control**
+
+| Option | Description |
+|--------|-------------|
+| Pre-commit hooks | Git hooks for linting, formatting, commit messages |
+| Release automation | release-please workflow and changelog generation |
+| GitHub Actions | CI/CD workflows for testing and deployment |
+| All CI/CD | Includes: pre-commit, release-please, workflows, github-pages, makefile |
+
+**Question 2: Container & Deployment**
+
+| Option | Description |
+|--------|-------------|
+| Dockerfile | Alpine/slim base, non-root user, multi-stage builds |
+| Container infra | Registry, scanning, devcontainer setup |
+| Skaffold | Kubernetes development configuration |
+| All container | Includes: dockerfile, container, skaffold, sentry, justfile |
+
+**Question 3: Testing**
+
+| Option | Description |
+|--------|-------------|
+| Test framework | Vitest, Jest, pytest, or cargo-nextest setup |
+| Code coverage | Coverage thresholds and reporting |
+| API testing | Pact contracts, OpenAPI validation |
+| All testing | Includes: tests, coverage, api-tests, integration-tests, load-tests, ux-testing, memory-profiling |
+
+**Question 4: Code Quality**
+
+| Option | Description |
+|--------|-------------|
+| Linting & Formatting | Biome, Ruff, Clippy configuration |
+| Security scanning | Dependency audits, SAST, secrets detection |
+| Documentation | TSDoc, JSDoc, pydoc, rustdoc generators |
+| All quality | Includes: linting, formatting, dead-code, docs, security, editor, package-management |
+
+### Step 3: Map selections to commands
+
+| Selection | Commands |
+|-----------|----------|
+| Pre-commit hooks | `/configure:pre-commit` |
+| Release automation | `/configure:release-please` |
+| GitHub Actions | `/configure:workflows` |
+| All CI/CD | pre-commit, release-please, workflows, github-pages, makefile |
+| Dockerfile | `/configure:dockerfile` |
+| Container infra | `/configure:container` |
+| Skaffold | `/configure:skaffold` |
+| All container | dockerfile, container, skaffold, sentry, justfile |
+| Test framework | `/configure:tests` |
+| Code coverage | `/configure:coverage` |
+| API testing | `/configure:api-tests` |
+| All testing | tests, coverage, api-tests, integration-tests, load-tests, ux-testing, memory-profiling |
+| Linting & Formatting | `/configure:linting`, `/configure:formatting` |
+| Security scanning | `/configure:security` |
+| Documentation | `/configure:docs` |
+| All quality | linting, formatting, dead-code, docs, security, editor, package-management |
+
+### Step 4: Execute selected checks
+
+Run each selected command with appropriate flags:
+
+- Default: Run with `--check-only` first, then offer `--fix`
+- If `--check-only` flag: Only audit, no fixes offered
+- If `--fix` flag: Apply fixes automatically
+
+Report results as each check completes.
+
+### Step 5: Generate summary report
+
+Print a summary for selected components only:
+
+```
+Selected Components Summary:
++-----------------+----------+---------------------------------+
+| Component       | Status   | Notes                           |
++-----------------+----------+---------------------------------+
+| Pre-commit      | WARN     | 2 outdated hooks                |
+| Linting         | PASS     | Biome configured                |
+| Formatting      | PASS     | Biome configured                |
++-----------------+----------+---------------------------------+
+```
+
+## Agentic Optimizations
+
+| Context | Command |
+|---------|---------|
+| Interactive component selection | `/configure:select` |
+| Select and auto-fix | `/configure:select --fix` |
+| Check mode only | `/configure:select --check-only` |
+| Detect project type | `test -f .project-standards.yaml && grep "^project_type:" .project-standards.yaml \| sed 's/.*:[[:space:]]*//'` |
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--check-only` | Report status without offering fixes |
+| `--fix` | Apply fixes automatically to all selected |
+
+## Comparison with Other Commands
+
+| Command | Use Case |
+|---------|----------|
+| `/configure:all` | Run everything (CI, full audit) |
+| `/configure:select` | Choose specific components interactively |
+| `/configure:status` | Quick read-only overview |
+| `/configure:<component>` | Single component only |
+
+## See Also
+
+- `/configure:all` - Run all checks
+- `/configure:status` - Read-only status overview

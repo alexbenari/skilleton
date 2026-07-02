@@ -1,0 +1,136 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  repo-validation:
+    name: Repo Validation (${{ matrix.os }} · py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+        exclude:
+          # Full Python matrix on Ubuntu; latest two on Windows/macOS to
+          # keep total matrix reasonable (9 jobs instead of 15).
+          - os: windows-latest
+            python-version: "3.9"
+          - os: windows-latest
+            python-version: "3.10"
+          - os: windows-latest
+            python-version: "3.11"
+          - os: macos-latest
+            python-version: "3.9"
+          - os: macos-latest
+            python-version: "3.10"
+          - os: macos-latest
+            python-version: "3.11"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test dependencies
+        # PyYAML is required for test_compose_rule_packs (the rule-pack
+        # composer opt-in path). The composer itself also auto-installs
+        # PyYAML at bootstrap time; CI pre-installs it so test discovery
+        # does not hit the import-time exit(2) in scripts/compose_rule_packs.py.
+        run: python -m pip install --quiet pyyaml
+
+      - name: Run validation tests
+        run: python -B -m unittest discover -s tests -p "test_*.py" -v
+
+  vendor-sync-check:
+    name: Vendor Sync Check
+    runs-on: ubuntu-latest
+    # Skip in ac mirror where scripts/vendor-packs.py does not exist; this
+    # job is aa-specific (vendors scripts/packs/* into the PyPI wheel).
+    # The STRICT-parity mirror keeps the workflow byte-identical between
+    # repos; the hashFiles guard makes the job a no-op in ac.
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Vendor sync check
+        if: hashFiles('scripts/vendor-packs.py') != ''
+        run: |
+          python scripts/vendor-packs.py check
+
+  v0_5_token_smoke:
+    name: v0.5.0 token-auth smoke + sentinel redaction check
+    runs-on: ubuntu-latest
+    # Skip in ac mirror where scripts/packs/auth.py does not exist; this
+    # job is aa-specific (validates the v0.5.0 auth-chain primitive). The
+    # STRICT-parity mirror keeps the workflow byte-identical between
+    # repos; the hashFiles guard makes the job a no-op in ac.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - if: hashFiles('scripts/packs/auth.py') != ''
+        run: pip install pyyaml
+
+      - name: Token method smoke with real Actions token
+        if: hashFiles('scripts/packs/auth.py') != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from scripts.packs import auth
+          archive = auth.fetch_with_method(
+              "https://github.com/yzhao062/agent-pack",
+              "v0.1.0",
+              "github_token",
+              dest=Path("token-smoke-clone"),
+          )
+          assert (archive.archive_dir / "pack.yaml").exists(), \
+              "token-auth path failed to fetch agent-pack"
+          PY
+
+      - name: Sentinel redaction smoke (rejected URL path)
+        if: hashFiles('scripts/packs/auth.py') != ''
+        env:
+          ANYWHERE_AGENTS_SENTINEL: anywhere-agents-sentinel-${{ github.run_id }}
+        run: |
+          python -m unittest \
+            tests.test_packs_auth_chain.TestRedactUrlUserinfo \
+            tests.test_packs_auth_chain.TestRedactSecretText \
+            tests.test_packs_auth_chain.TestRejectCredentialURLRedaction \
+            -v
+
+      # End-to-end Compose smoke deferred to v0.5.1: the test-fixture
+      # needs the bundled bootstrap manifest seeded with agent-style and
+      # the agent-style fetch path exercised, which is broader than the
+      # v0.5.0 token-leak / auth-chain assertion this job is meant to
+      # gate. Token method smoke + Sentinel redaction smoke above
+      # already validate the v0.5.0 auth chain primitive, and
+      # tests/test_compose_packs_v0_5.* exercises the composer end-to-end
+      # in unit form. TODO(v0.6.0): wire the ANYWHERE_AGENTS_CMDLOG
+      # harness for end-to-end token-leak coverage.

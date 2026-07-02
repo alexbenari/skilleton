@@ -90,7 +90,11 @@ app.whenReady().then(() => {
   const discovery = new SkillDiscovery({ fileSystem: require("fs") });
   const installer = new SkillInstaller();
   const appConfig = new AppConfig({ configPath: appConfigPath() });
-  const repositoryImporter = new SkillRepositoryImporter({ db, discovery });
+  const repositoryImporter = new SkillRepositoryImporter({
+    db,
+    discovery,
+    tempRootPath: app.getPath("temp"),
+  });
   skillLibrary = new ActiveSkillLibrary({
     db,
     discovery,
@@ -153,8 +157,7 @@ app.whenReady().then(() => {
     if (result.status === "no-skills-found") {
       return {
         result,
-        cleanupOffered: true,
-        message: `Cloned ${result.repoUrl}, but no SKILL.md entries were found.`,
+        message: `Inspected ${result.repoUrl}, but no SKILL.md entries were found. Nothing was added to the library.`,
         messageKind: "warn",
         state: nextState,
       };
@@ -169,7 +172,7 @@ app.whenReady().then(() => {
     }
     return {
       result,
-      message: `Cloned ${result.repoUrl} into ${result.destination}`,
+      message: `Imported ${result.repoUrl} into ${result.destination}`,
       messageKind: "info",
       state: nextState,
     };
@@ -178,7 +181,7 @@ app.whenReady().then(() => {
     const result = skillLibrary.cleanupImportedRepository(destination);
     return {
       result,
-      message: `Deleted cloned folder ${result.destination}`,
+      message: `Deleted imported folder ${result.destination}`,
       messageKind: "info",
       state: skillLibrary.statusSnapshot(project || null),
     };

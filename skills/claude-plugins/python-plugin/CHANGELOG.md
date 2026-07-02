@@ -1,0 +1,129 @@
+# Changelog
+
+## [1.5.6](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.5.5...python-plugin-v1.5.6) (2026-05-29)
+
+
+### Code Refactoring
+
+* **python-plugin:** shrink python-code-quality to an orchestration index ([#1450](https://github.com/laurigates/claude-plugins/issues/1450)) ([88af37e](https://github.com/laurigates/claude-plugins/commit/88af37ed5a78e75863b915c7da6d77190f8bd54b))
+
+## [1.5.5](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.5.4...python-plugin-v1.5.5) (2026-05-29)
+
+
+### Code Refactoring
+
+* **python-plugin:** fold ruff-integration into ruff-linting/REFERENCE.md ([#1446](https://github.com/laurigates/claude-plugins/issues/1446)) ([dafa0ad](https://github.com/laurigates/claude-plugins/commit/dafa0adff56bdcd6b04988e5387f49be4e485c61))
+
+## [1.5.4](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.5.3...python-plugin-v1.5.4) (2026-05-14)
+
+
+### Code Refactoring
+
+* **python-plugin:** tighten skill descriptions for listing budget ([b301e18](https://github.com/laurigates/claude-plugins/commit/b301e1801dc1d1845b0f0cf73fda91d056afe021))
+
+## [1.5.3](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.5.2...python-plugin-v1.5.3) (2026-05-09)
+
+
+### Documentation
+
+* trim oversized SKILL.md descriptions across 41 plugins ([#1265](https://github.com/laurigates/claude-plugins/issues/1265)) ([e13d9f4](https://github.com/laurigates/claude-plugins/commit/e13d9f46a010559082c6d5eb61b0cb891843bf97))
+
+## [1.5.2](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.5.1...python-plugin-v1.5.2) (2026-04-25)
+
+
+### Documentation
+
+* **python-plugin:** standardise When to Use tables ([#1160](https://github.com/laurigates/claude-plugins/issues/1160)) ([df7b36e](https://github.com/laurigates/claude-plugins/commit/df7b36e82d85e78ceaf3f6a998b400dca1e5f0f3)), closes [#1156](https://github.com/laurigates/claude-plugins/issues/1156)
+
+## [1.5.1](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.5.0...python-plugin-v1.5.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* **blueprint-plugin:** remove model field from skills and fix invocation syntax ([#1007](https://github.com/laurigates/claude-plugins/issues/1007)) ([42e1e5b](https://github.com/laurigates/claude-plugins/commit/42e1e5b6c73d43e5de4b27cdee16e316de44d4c0))
+
+## [1.5.0](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.4.0...python-plugin-v1.5.0) (2026-02-27)
+
+
+### Features
+
+* add metadata fields to skill definitions across all plugins ([#828](https://github.com/laurigates/claude-plugins/issues/828)) ([59b3d1f](https://github.com/laurigates/claude-plugins/commit/59b3d1fadd8fd888f95ced8b071fb66cf6f9c825))
+* add skill invocation control via user-invocable and disable-model-invocation frontmatter ([59b3d1f](https://github.com/laurigates/claude-plugins/commit/59b3d1fadd8fd888f95ced8b071fb66cf6f9c825))
+
+## [1.4.0](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.3.1...python-plugin-v1.4.0) (2026-02-25)
+
+
+### Features
+
+* **python-plugin:** replace mypy with ty for type checking ([96a1aaa](https://github.com/laurigates/claude-plugins/commit/96a1aaa9c5f7e07725c72ce0a6f99f7fbf222d57))
+* replace mypy with ty for Python type checking ([#808](https://github.com/laurigates/claude-plugins/issues/808)) ([96a1aaa](https://github.com/laurigates/claude-plugins/commit/96a1aaa9c5f7e07725c72ce0a6f99f7fbf222d57))
+
+## [1.3.1](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.3.0...python-plugin-v1.3.1) (2026-02-14)
+
+
+### Code Refactoring
+
+* extract detailed content to REFERENCE.md files ([#605](https://github.com/laurigates/claude-plugins/issues/605)) ([7efbd83](https://github.com/laurigates/claude-plugins/commit/7efbd83b9a2b1ef67be702206396ba6d8102684d))
+
+## [1.3.0](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.2.4...python-plugin-v1.3.0) (2026-02-13)
+
+
+### Features
+
+* expand uv-workspaces skill with virtual workspaces and Docker patterns ([#588](https://github.com/laurigates/claude-plugins/issues/588)) ([2f0f997](https://github.com/laurigates/claude-plugins/commit/2f0f997e70db1dd946ca034cfaab9695dc1349a3))
+
+## [1.2.4](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.2.3...python-plugin-v1.2.4) (2026-02-12)
+
+
+### Bug Fixes
+
+* standardize skill name fields to kebab-case across all plugins ([72c0f83](https://github.com/laurigates/claude-plugins/commit/72c0f837a1b07004850c5906a30d619a79098f69))
+
+## [1.2.3](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.2.2...python-plugin-v1.2.3) (2026-02-08)
+
+
+### Code Refactoring
+
+* reframe negative guidance as positive guidance across skills ([7e755ee](https://github.com/laurigates/claude-plugins/commit/7e755ee1c32c39c124f3204a0d0a8d1d770e1573))
+
+## [1.2.2](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.2.1...python-plugin-v1.2.2) (2026-02-06)
+
+
+### Bug Fixes
+
+* **frontmatter:** resolve 83 validation errors across 75 files ([#434](https://github.com/laurigates/claude-plugins/issues/434)) ([5beb75e](https://github.com/laurigates/claude-plugins/commit/5beb75ed4b2cb0431d060bd7102903495c03c6c5))
+
+## [1.2.2](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.2.1...python-plugin-v1.2.2) (2026-02-06)
+
+
+### Bug Fixes
+
+* **frontmatter:** resolve 83 validation errors across 75 files ([#434](https://github.com/laurigates/claude-plugins/issues/434)) ([5beb75e](https://github.com/laurigates/claude-plugins/commit/5beb75ed4b2cb0431d060bd7102903495c03c6c5))
+
+## [1.2.1](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.2.0...python-plugin-v1.2.1) (2026-02-01)
+
+
+### Bug Fixes
+
+* enforce granular Bash permissions across all plugins ([#267](https://github.com/laurigates/claude-plugins/issues/267)) ([afeb507](https://github.com/laurigates/claude-plugins/commit/afeb50754838c2923807c8f2a248b3798fd4281c))
+
+## [1.2.0](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.1.1...python-plugin-v1.2.0) (2026-01-29)
+
+
+### Features
+
+* **python-plugin:** add ty type checking skill ([#238](https://github.com/laurigates/claude-plugins/issues/238)) ([312c9c4](https://github.com/laurigates/claude-plugins/commit/312c9c478c43c31406c672d3b73813b428129157))
+
+## [1.1.1](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.1.0...python-plugin-v1.1.1) (2026-01-24)
+
+
+### Code Refactoring
+
+* **code-quality-plugin:** improve ast-grep skill discoverability and reduce size ([#189](https://github.com/laurigates/claude-plugins/issues/189)) ([11f6fa5](https://github.com/laurigates/claude-plugins/commit/11f6fa561c3a57204fb4388a04ecd8f3ffc19f5b))
+
+## [1.1.0](https://github.com/laurigates/claude-plugins/compare/python-plugin-v1.0.0...python-plugin-v1.1.0) (2026-01-23)
+
+
+### Features
+
+* add model specification to all skills and commands ([#131](https://github.com/laurigates/claude-plugins/issues/131)) ([81f2961](https://github.com/laurigates/claude-plugins/commit/81f296155b50864b8b1687b9eb18a9c2cbb08791))

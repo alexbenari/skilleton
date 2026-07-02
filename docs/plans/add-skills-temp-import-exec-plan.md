@@ -13,15 +13,50 @@ of embedded repos.
 
 - [x] (2026-07-01 00:00Z) Product spec approved in
   `docs/specs/add-skills-temp-import-spec.md`.
-- [ ] (2026-07-01 00:00Z) Add DB support for imported Git provenance
+- [x] (2026-07-01 00:00Z) Add DB support for imported Git provenance
   (`git_tracked_ref`, `git_imported_revision`) and keep existing skill reads and
   writes working.
-- [ ] (2026-07-01 00:00Z) Replace direct-to-library clone behavior with
+- [x] (2026-07-01 00:00Z) Replace direct-to-library clone behavior with
   temp-clone, copy-without-`.git`, path translation, and temp cleanup.
-- [ ] (2026-07-01 00:00Z) Update IPC and renderer messaging to reflect import
+- [x] (2026-07-01 00:00Z) Update IPC and renderer messaging to reflect import
   instead of live clone behavior and remove no-skills cleanup prompting.
-- [ ] (2026-07-01 00:00Z) Verify the feature end to end with importer tests, DB
-  tests, and a manual Electron smoke check.
+- [x] (2026-07-01 00:00Z) Verify the feature with unit tests, integration
+  tests, syntax checks, and a limited Electron startup smoke check.
+
+## Skill Gates
+
+Planning-time gates:
+
+- `docs/agent-docs/agent-architecture-map.md`: required repository entrypoint
+  for architecture orientation before planning work in `skill-manager/`.
+- `coding-quality.md`: repository source of truth for boundaries,
+  responsibilities, naming, and review standards while drafting the plan.
+- `build-deploy-and-tooling`: applies because this feature changes repo-level
+  test organization and developer workflow under `skill-manager/tests/`.
+- `testing-discipline`: applies because the plan makes concrete decisions about
+  test taxonomy, fixtures, and what behavior unit versus integration tests
+  should prove.
+
+Execution-time gates:
+
+- `writing-clean-code`: use before modifying non-trivial implementation logic in
+  the importer, DB adapter, IPC handlers, and renderer.
+- `testing-discipline`: use before writing or restructuring tests under
+  `skill-manager/tests/unit/` and `skill-manager/tests/integration/`.
+- `build-deploy-and-tooling`: use while reorganizing the test suite layout and
+  any commands or scripts that run it.
+- `error-and-correctness-traps`: use when implementing temp-directory
+  lifecycle, recursive copy/cleanup behavior, and failure handling around Git
+  and filesystem operations.
+- `api-and-interface-design`: use if implementation changes exported IPC
+  payload shapes or public module contracts other code depends on.
+- `doc-update`: use if the final implementation changes durable agent-facing
+  architecture assumptions in `docs/agent-docs/`.
+- `pre-commit-self-review`: use before claiming implementation is complete.
+
+Unavailable skills or fallbacks:
+
+- None currently identified.
 
 ## Surprises & Discoveries
 
@@ -38,10 +73,21 @@ of embedded repos.
   prompts the user to delete it when no skills are found.
   Evidence: `skill-manager/ui/renderer.js` function `cloneSkillsRepo()`.
 
+- Discovery: The current test layout is flat under `skill-manager/tests/` and
+  only the DB adapter test is explicitly labeled integration-oriented.
+  Evidence: directory listing of `skill-manager/tests/` on 2026-07-01.
+
 - Discovery: Electron exposes a native temp path via `app.getPath('temp')`,
   which is a better home for temporary clone workdirs than `userData`.
   Evidence: [Electron `app.getPath`](https://electronjs.org/docs/latest/api/app)
   and `PLANS.md` requirement to record research decisions in the plan.
+
+- Discovery: Explicit library refresh would have erased imported Git provenance
+  unless DB upserts preserved existing provenance fields when refreshed rows
+  omitted them.
+  Evidence: review of `skill-manager/electron/skill-library.js` refresh inputs
+  versus `skill-manager/electron/skill-library-db.js` upsert behavior during
+  implementation.
 
 ## Decision Log
 
@@ -72,14 +118,43 @@ of embedded repos.
   globals directly.
   Date/Author: 2026-07-01 / Codex + user
 
+- Decision: Preserve existing Git provenance during explicit library refresh
+  when refreshed rows omit repo metadata.
+  Rationale: Imported repos become plain files in the library, so refresh cannot
+  rediscover provenance from disk. Keeping the stored metadata is necessary for
+  a future update-check feature to survive manual refresh.
+  Date/Author: 2026-07-01 / Codex
+
+- Decision: Reorganize `skill-manager/tests/` into `tests/unit/` and
+  `tests/integration/`, then split files by test area inside those folders.
+  Rationale: The current flat layout blurs test type boundaries. Unit tests
+  should be defined by the scope under test, not by whether they happen to use
+  mocks, while integration tests are the right home for real filesystem and DB
+  collaboration checks. Manual Electron smoke verification remains the current
+  system-level check.
+  Date/Author: 2026-07-01 / Codex + user
+
 ## Outcomes & Retrospective
 
-Pending implementation.
+Implemented.
 
-The shipped behavior should let a user import a repo into any active library
-without creating a nested `.git` directory inside that library. Verification
-should prove both the filesystem outcome and the updated catalog state, not
-just internal code changes.
+The shipped behavior now imports a repo into any active library by cloning into
+an OS temp workdir, copying the repo contents into the library without `.git`,
+cataloging the copied skill paths, and removing the temp clone afterward.
+
+Evidence:
+
+- `node --test tests/unit/*.test.js`
+- `node --test tests/integration/*.test.js`
+- `node --check electron/main.js`
+- `node --check ui/renderer.js`
+- local Electron startup smoke via `node_modules/.bin/electron.cmd .`
+
+Follow-up:
+
+- The backend import flow and app startup were verified, but the Add Skills UI
+  was not manually clicked through end to end in a live desktop session during
+  this run.
 
 ## Context and orientation
 
@@ -114,12 +189,19 @@ Important modules:
   Renderer bridge. Any IPC channel shape changes must stay mirrored here.
 
 - `skill-manager/ui/renderer.js`
-  UI behavior and user messages for Add Skills. Today it still refers to
-  "cloning" into the library and prompts for cleanup when no skills are found.
+  UI behavior and user messages for Add Skills. It owns the repo-import modal,
+  import status copy, and duplicate-name messaging.
 
-- `skill-manager/tests/skill-repository-importer.test.js`
-  Existing importer tests. Expand these to cover temp cloning, copy behavior,
-  provenance, and cleanup.
+Test layout target for this work:
+
+- `skill-manager/tests/unit/`
+  Tests whose subject is one module or class boundary, regardless of whether
+  collaborators are mocked, faked, or simple real helpers.
+
+- `skill-manager/tests/integration/`
+  Tests that verify collaboration across boundaries using real temp
+  directories, real file copying, or a real SQLite DB file while still staying
+  local and deterministic.
 
 Assumptions to preserve:
 
@@ -153,17 +235,18 @@ update checks, while keeping existing library refresh and read paths working.
   Edit: Ensure refresh-based discovered skills continue to write `NULL` for the
   new provenance fields unless the discovery/import caller provides values.
 
-- File: tests covering DB schema and skill upsert behavior
-  Edit: Add assertions that imported rows can store and round-trip the new
-  provenance fields.
+- File: `skill-manager/tests/integration/` DB-focused test files
+  Edit: Move DB adapter coverage under the new integration-test folder and add
+  assertions that imported rows can store and round-trip the new provenance
+  fields.
 
 ### Validation
 
-- Command: `cd skill-manager && node --test tests/skill-library-db.integration.test.js`
+- Command: `cd skill-manager && node --test tests/integration/*.test.js`
   Expected: DB schema initialization and skill upsert/read tests pass with the
-  new provenance fields present.
+  new provenance fields present, including the DB adapter coverage.
 
-- Command: `cd skill-manager && node --test tests/skill-library.test.js`
+- Command: `cd skill-manager && node --test tests/unit/*.test.js`
   Expected: existing skill-library behavior still passes, including refresh and
   tag-related flows.
 
@@ -200,19 +283,23 @@ translating discovered paths, and cleaning up temp workdirs.
   Edit: Keep the orchestration API stable while adapting to any updated result
   payload shape from the importer.
 
-- File: `skill-manager/tests/skill-repository-importer.test.js`
-  Edit: Add focused tests for temp-root use, `.git` exclusion, final-path
-  cataloging, auto-cleanup, duplicate-name failure behavior, and no-skills
-  behavior.
+- File: `skill-manager/tests/unit/` importer-focused test files
+  Edit: Keep narrow mock-heavy importer branch tests here, especially duplicate
+  and result-shape behavior that does not need real filesystem operations.
+
+- File: `skill-manager/tests/integration/` importer-focused test files
+  Edit: Add real-temp-filesystem importer tests for temp-root use, `.git`
+  exclusion, final-path cataloging, auto-cleanup, and no-skills behavior.
 
 ### Validation
 
-- Command: `cd skill-manager && node --test tests/skill-repository-importer.test.js`
-  Expected: importer tests prove temp clone use, copied final destination
-  behavior, `.git` exclusion, provenance capture, and cleanup.
+- Command: `cd skill-manager && node --test tests/integration/*.test.js`
+  Expected: integration tests prove temp clone use, copied final destination
+  behavior, `.git` exclusion, provenance capture, cleanup, and DB behavior.
 
-- Command: `cd skill-manager && node --test tests/skill-library-db.integration.test.js`
-  Expected: DB integration still passes after importer writes the new columns.
+- Command: `cd skill-manager && node --test tests/unit/*.test.js`
+  Expected: unit tests still pass for importer, discovery, installer, and
+  library orchestration behavior after the reorganization.
 
 ### Rollback/Containment
 
@@ -272,17 +359,22 @@ docs already say.
   folder" to temp-clone plus copied import if the final implementation changes
   the durable architecture enough to make the current wording stale.
 
+- File: `skill-manager/tests/`
+  Edit: Finish the folder reorganization so the active suite lives under
+  `tests/unit/` and `tests/integration/` with filenames grouped by area.
+
 - File: `docs/specs/add-skills-temp-import-spec.md` and this plan
   Edit: Record any implementation discoveries or deviations encountered during
   execution.
 
 ### Validation
 
-- Command: `cd skill-manager && node --test tests/skill-library.test.js`
-  Expected: no regressions in library behavior.
+- Command: `cd skill-manager && node --test tests/unit/*.test.js`
+  Expected: no regressions in unit-level library, installer, discovery, and
+  importer behavior.
 
-- Command: `cd skill-manager && node --test tests/skill-repository-importer.test.js && node --test tests/skill-library-db.integration.test.js && node --check electron/main.js && node --check ui/renderer.js`
-  Expected: targeted backend and syntax checks all pass.
+- Command: `cd skill-manager && node --test tests/integration/*.test.js && node --check electron/main.js && node --check ui/renderer.js`
+  Expected: integration-level backend checks and syntax checks all pass.
 
 - Command: `cd skill-manager && electron .`
   Expected: manual smoke check succeeds. In the app, importing a small test repo

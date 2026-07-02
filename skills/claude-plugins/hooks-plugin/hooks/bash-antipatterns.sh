@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+# PreToolUse hook for Bash tool - detects anti-patterns and reminds Claude
+# to use built-in tools instead of shell commands
+
+set -euo pipefail
+
+# Read the JSON input from stdin
+INPUT=$(cat)
+
+# Extract the command from the tool input
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+# If no command, allow it
+if [ -z "$COMMAND" ]; then
+    exit 0
+fi
+
+# Strip heredoc body content up front so detectors that scan the whole command
+# string don't false-positive on literal text inside a heredoc body. The main
+# offender is `gh pr create --body "$(cat <<'EOF' ... EOF)"` whose body may
+# contain example shell commands (e.g. "git add && git commit") that are just
+# documentation, not executable code.
+#
+# The awk program walks the command line-by-line. When it sees `<<DELIM` it
+# enters heredoc mode and suppresses subsequent lines until it sees a line
+# matching DELIM. The heredoc-opening line itself is still printed.
+COMMAND_SHELL_ONLY=$(echo "$COMMAND" | awk '
+    BEGIN { ih = 0 }
+    ih == 0 {
+        if (match($0, /<<-?[[:space:]]*[^[:space:]]*[A-Za-z_][A-Za-z_0-9]*/)) {
+            s = substr($0, RSTART)
+            gsub(/<<-?[[:space:]]*/, "", s)
+            gsub(/^[^A-Za-z_]+/, "", s)
+            gsub(/[^A-Za-z_0-9].*/, "", s)
+            if (s != "") { delim = s; ih = 1 }
+            print; next
+        }
+        print; next
+    }
+    ih == 1 {
+        t = $0; gsub(/^[[:space:]]+/, "", t); gsub(/[[:space:]]+$/, "", t)
+        if (t == delim) { ih = 0 }
+    }
+')
+
+# Function to output a blocking message (exit code 2 = blocking error)
+block() {
+    echo "$1" >&2
+    exit 2
+}
+
+# Check for cat used to read files (but allow cat in pipelines and heredocs)
+# Patterns: cat file, cat /path/file, cat "./file"
+# Allow cat as first command in a pipeline (cat file | ...) since the data flows to other tools
+if echo "$COMMAND" | grep -Eq '^\s*cat\s+[^|><]' && \
+   ! echo "$COMMAND" | grep -Eq '<<|cat\s*>' && \
+   ! echo "$COMMAND" | grep -q '|'; then
+    block "BLOCKED: 'cat /path/to/file.md' →
+  Read(file_path=\"/path/to/file.md\")
+
+The Read tool returns line-numbered content and respects token budgets.
+Pipelines (cat file | jq) and heredocs (cat <<EOF) are still allowed.
+See .claude/rules/bash-tool-replacements.md for the full table."
+fi
+
+# Check for head/tail used to read files (not in pipelines)
+if echo "$COMMAND" | grep -Eq '^\s*(head|tail)\s+(-[0-9n]+\s+)?[^|]' && \
+   ! echo "$COMMAND" | grep -q '|'; then
+    block "BLOCKED: 'head -50 file.md' →
+  Read(file_path=\"/abs/path/to/file.md\", limit=50)
+
+BLOCKED: 'tail -50 file.md' →
+  Read(file_path=\"/abs/path/to/file.md\", offset=<total_lines - 50>, limit=50)
+
+The Read tool with offset/limit reads the same byte range with
+line-numbered output. Pipelines (head file | …) are still allowed.
+See .claude/rules/bash-tool-replacements.md for the full table."
+fi
+
+# Check for sed used for editing (in-place edits)
+if echo "$COMMAND" | grep -Eq "sed\s+(-i|--in-place)"; then
+    block "REMINDER: Use the Edit tool instead of 'sed -i' to modify files. The Edit tool provides safer, more precise string replacements with proper error handling."
+fi
+
+# Check for awk used for file modifications
+if echo "$COMMAND" | grep -Eq "awk\s+.*>\s*['\"]?[^|]+" && \
+   echo "$COMMAND" | grep -Eq "(>|>>)\s*['\"]?\\\$"; then
+    block "REMINDER: Use the Edit tool instead of 'awk' for file modifications. The Edit tool is safer and more precise."
+fi
+
+# Check for cat/echo writing to files (not heredocs in valid bash scripts)
+# Use [^;&|]* instead of .* to avoid crossing command separators (;, &&, ||, |)
+# which would cause false positives when echo "text" is followed by an unrelated 2>/dev/null
+# Strip single-quoted strings first: content inside single quotes is literal bash text
+# (e.g., kubectl exec -- php -r 'echo "$c->id"') and cannot contain shell redirections.
+# shellcheck disable=SC2001  # bash pattern substitution can't do regex char class `[^']*`
+COMMAND_NO_SQUOTES=$(echo "$COMMAND" | sed "s/'[^']*'//g")
+if echo "$COMMAND_NO_SQUOTES" | grep -Eq '(^|\s)(echo|printf)\s+[^;&|]*>\s*[^&]' && \
+   ! echo "$COMMAND_NO_SQUOTES" | grep -Eq '(echo|printf).*>>\s*/dev/null'; then
+    # Allow echo to /dev/null, but warn about file writes
+    if echo "$COMMAND_NO_SQUOTES" | grep -Eq '(echo|printf)\s+[^;&|>]+>\s*[a-zA-Z/\.]'; then
+        block "REMINDER: Use the Write tool instead of 'echo/printf > file' to create files. The Write tool properly handles file creation and provides better error handling."
+    fi
+fi
+
+# Check for commit message being written to temp file
+# Pattern: cat > /tmp/commit_msg.txt or similar, often with heredoc containing conventional commit
+#
+# Gate on an actual `git commit` / `git tag` in the command. Otherwise a PR or
+# issue body written to a temp file and passed to `gh pr create --body-file` /
+# `gh issue edit --body-file` — the recommended multi-line-body pattern — falsely
+# triggered this git-commit-specific reminder, which is irrelevant to the blocked
+# command (issue #1584, #1587). The reminder only makes sense when the command
+# is in fact composing a git commit/tag message.
+if echo "$COMMAND" | grep -Eq 'git\s+(commit|tag)\b' && \
+   echo "$COMMAND" | grep -Eq '(feat|fix|docs|refactor|test|chore|perf|ci)(\(.+\))?[!:]' && \
+   { echo "$COMMAND" | grep -Eq 'cat\s*>\s*[^|]*commit' || \
+     echo "$COMMAND" | grep -Eq "(cat|echo|printf)\s*>\s*/tmp/.*<<.*EOF"; }; then
+    block "REMINDER: Use HEREDOC directly in git commit:
+
+git commit -m \"\$(cat <<'EOF'
+type(scope): description
+
+Body text here.
+
+Fixes #123
+EOF
+)\""
+fi
+
+# Check for cat > file (writing files).
+# Exempt heredoc writes (cat > file <<EOF ... EOF): writing a temp file via a
+# heredoc and feeding it to a later command (e.g. gh pr create --body-file) is
+# the recommended multi-line pattern (copy-paste-commands.md), and the hook's own
+# cat-read message above already states heredocs are allowed (issue #1584, #1587).
+# A plain `cat > file` with no heredoc is still blocked in favour of the Write tool.
+if echo "$COMMAND" | grep -Eq 'cat\s*>\s*[^|]' && \
+   ! echo "$COMMAND" | grep -Eq 'cat\s*>\s*\S.*<<'; then
+    block "REMINDER: Use the Write tool instead of 'cat > file' to create files. The Write tool is the proper way to write file contents."
+fi
+
+# Check for timeout command
+if echo "$COMMAND" | grep -Eq '^\s*timeout\s+'; then
+    block "REMINDER: The 'timeout' command is usually unnecessary - the Bash tool has its own timeout parameter. Human approval time typically exceeds any timeout value anyway. Remove the timeout wrapper and use the command directly."
+fi
+
+# Check for find command (should use Glob for simple patterns)
+# Allow find when using directory-discovery flags that Glob cannot replicate:
+# -maxdepth, -mindepth, -type, -print0. These are recommended in agentic-permissions.md
+# and shell-scripting.md for context commands. Block simple name-pattern searches
+# and any -exec usage (dangerous; runs arbitrary commands).
+if echo "$COMMAND" | grep -Eq '^\s*find\s+' && \
+   ! echo "$COMMAND" | grep -Eq 'find\s+.*(-maxdepth|-mindepth|-type\s|-print0)'; then
+    block "BLOCKED: 'find . -name \"*.ts\"' →
+  Glob(pattern=\"**/*.ts\")
+
+The Glob tool is faster and optimized for codebase searches. If you
+need -maxdepth, -mindepth, -type d, or -print0 for directory discovery
+that Glob cannot do, keep find with those flags — the hook allows it.
+See .claude/rules/bash-tool-replacements.md for the full table."
+fi
+
+# Check for grep/rg command (should use Grep tool)
+# Allow grep -q / grep --quiet: these are boolean exit-code checks the Grep tool
+# cannot replicate (e.g. grep -q pattern file && do_thing).
+# Also allow piped grep (already excluded by the '|' check above).
+if echo "$COMMAND" | grep -Eq '^\s*(grep|rg)\s+' && \
+   ! echo "$COMMAND" | grep -q '|' && \
+   ! echo "$COMMAND" | grep -Eq '(grep|rg)[^|]*\s(-[a-zA-Z]*q[a-zA-Z]*(\s|$)|--quiet(\s|$))'; then
+    block "BLOCKED: 'grep -rn pattern src/' →
+  Grep(pattern=\"pattern\", path=\"src\", -r=true, -n=true)
+
+BLOCKED: 'rg pattern --type ts' →
+  Grep(pattern=\"pattern\", glob=\"*.ts\")
+
+The Grep tool is optimized for codebase searches with proper permissions
+and result formatting. Pipelines (… | grep …) and boolean checks
+(grep -q pattern file && do_thing) are still allowed.
+See .claude/rules/bash-tool-replacements.md for the full table."
+fi
+
+# Check for ls used for file listing (should often use Glob)
+if echo "$COMMAND" | grep -Eq '^\s*ls\s+.*\*'; then
+    block "REMINDER: Consider using the Glob tool for pattern-based file listing. Glob provides sorted results by modification time and handles large directories better."
+fi
+
+# Check for reading task output files (should use TaskOutput tool)
+# Detects patterns like: cat /tmp/claude/*/tasks/*.output, tail ...tasks/...output, sleep && cat ...output
+if echo "$COMMAND" | grep -Eq '(cat|tail|head).*(/tasks/|\.output)' || \
+   echo "$COMMAND" | grep -Eq 'sleep.*&&.*(cat|tail)'; then
+    block "REMINDER: Use the TaskOutput tool instead of Bash commands to read task output. The TaskOutput tool is designed for checking on background tasks - use it with the task_id parameter. Example: TaskOutput with task_id and block=false for non-blocking status checks."
+fi
+
+# Check for excessive pipe chains (5+ pipes suggest over-complexity)
+# Uses COMMAND_SHELL_ONLY (heredoc body already stripped above) to avoid
+# counting markdown table pipes or other literal content as shell pipe operators.
+# Strip quoted strings and || operators before counting actual shell pipes
+# - Single-quoted strings contain regex alternation (grep -E '(a|b|c)')
+# - Double-quoted strings may contain literal pipe characters
+# - || is logical OR, not a pipe operator
+PIPE_COUNT=$(echo "$COMMAND_SHELL_ONLY" | sed "s/'[^']*'//g; s/\"[^\"]*\"//g; s/||//g" | tr -cd '|' | wc -c)
+if [ "$PIPE_COUNT" -ge 5 ]; then
+    block "REMINDER: This command has $PIPE_COUNT pipes - consider simplifying. Options:
+- Use JSON output from the source (--reporter=json, --format=json) and parse with jq
+- Use awk for multi-step text processing in one command
+- Break into multiple steps with intermediate analysis
+- For test failures: use test runner's built-in summary/grouping features"
+fi
+
+# Check for multi-grep chains parsing test/task output
+# Pattern: grep ... | grep ... with sed/cut suggests parsing structured output as text
+if echo "$COMMAND" | grep -Eq 'grep.*\|.*grep.*\|.*(sed|cut|awk)' && \
+   echo "$COMMAND" | grep -Eq '(\.output|/tasks/|Error|fail|FAIL)'; then
+    block "REMINDER: Parsing test output with grep chains is fragile. Better alternatives:
+- Use --reporter=json (Bun, Vitest, Jest) and parse with jq
+- Use --reporter=junit for CI-style XML output
+- Check test runner docs for built-in failure grouping options
+- For Bun: 'bun test --reporter=json 2>&1 | jq .testResults'"
+fi
+
+# Check for broad git staging commands (git add -A, git add --all, git add .)
+# These can accidentally include sensitive files (.env, credentials) or large binaries.
+# Pattern handles git global flags like -C <path> before the subcommand.
+if echo "$COMMAND" | grep -Eq '^\s*git\s+(.+\s+)?add\s+(-A|--all|\.(\s|$))'; then
+    block "REMINDER: Avoid broad staging commands like 'git add -A', 'git add --all', or 'git add .'.
+These can accidentally include sensitive files (.env, credentials) or large binaries.
+
+Instead, stage specific files by name:
+  git add src/file1.ts src/file2.ts
+
+Or review what would be staged first:
+  git status --porcelain"
+fi
+
+# Check for chained git commands that involve index-modifying operations (git X && git Y)
+# index.lock race conditions only occur when one command writes to the git index.
+# Index-modifying commands: add, commit, rm, mv, reset (not read-only commands like status/diff/log).
+# The fix is to run git commands as separate Bash calls, not chained.
+#
+# Uses COMMAND_SHELL_ONLY (heredoc body stripped) so that example shell
+# snippets inside `gh pr create --body "$(cat <<EOF ... EOF)"` do not trigger
+# a false positive when the body mentions `git add && git commit`.
+INDEX_MODIFYING='(add|commit|rm|mv|reset)'
+if echo "$COMMAND_SHELL_ONLY" | grep -Eq "git\\s+${INDEX_MODIFYING}\\b.*&&.*git\\s+\\S+" || \
+   echo "$COMMAND_SHELL_ONLY" | grep -Eq "git\\s+\\S+.*&&.*git\\s+${INDEX_MODIFYING}\\b"; then
+    block "REMINDER: Chaining git commands with '&&' can cause index.lock race conditions.
+The lock file from an index-modifying command (add, commit, rm, mv, reset) may not be
+released before the next command tries to acquire it.
+Instead of: git add . && git commit -m 'msg'
+Run git commands as separate Bash tool calls:
+1. git add src/file.ts
+2. git commit -m 'msg'
+This avoids race conditions and is more reliable."
+fi
+
+# Check for git reset --hard (destructive operation, usually unnecessary)
+# After pushing commits to a PR branch, agents sometimes think they need to reset main.
+# However, once the PR is merged, git pull will cleanly resolve the situation.
+# Exclude heredocs (<<) so commit messages mentioning "git reset" don't trigger this.
+if echo "$COMMAND" | grep -Eq '^\s*git\s+reset\s+--hard' && \
+   ! echo "$COMMAND" | grep -Eq '<<'; then
+    block "REMINDER: 'git reset --hard' is destructive and usually unnecessary.
+
+COMMON SCENARIO - Accidentally committed to main, then pushed to a PR branch:
+Once the PR is merged on GitHub, the local main branch resolves itself cleanly
+when you run 'git pull'. Wait for the merge, then pull.
+
+Use these alternatives instead:
+- Sync with remote after PR merge: use 'git pull' - it resolves everything
+- Discard uncommitted changes: use 'git checkout -- <file>' or 'git restore <file>'
+- Undo a local commit (not pushed): use 'git reset --soft HEAD~1' (keeps changes staged)
+- Switch branches cleanly: use 'git stash' then 'git checkout <branch>'
+
+FOR THE 'ACCIDENTAL COMMIT TO MAIN' CASE: Wait for the PR to merge, then
+'git pull' on main will fast-forward to include your commits. Problem solved.
+
+IF THIS COMMAND IS TRULY REQUIRED (rare - corrupted git state):
+Ask the user to run it manually with:
+1. The exact command: $COMMAND
+2. Why it's needed for this specific situation
+3. What alternatives you tried"
+fi
+
+# Check for git push -u that would set main/master tracking to a feature branch.
+# Pattern: git push -u origin <branch> (no colon refspec) while on main/master
+# but pushing to a differently-named branch — this sets main's upstream to
+# origin/<feature-branch>, which is wrong.
+# Correct form: git push origin main:<feature-branch> (explicit refspec, no -u)
+if echo "$COMMAND" | grep -Eq '^\s*git\s+push\b' && \
+   echo "$COMMAND" | grep -Eq '\s-u\b' && \
+   echo "$COMMAND" | grep -Eq '\sorigin\s+[a-zA-Z0-9._/-]+\s*$' && \
+   ! echo "$COMMAND" | grep -q ':'; then
+    PUSH_BRANCH=$(echo "$COMMAND" | grep -oE 'origin\s+[a-zA-Z0-9._/-]+' | awk '{print $2}')
+    CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+    if [ -n "$CURRENT_BRANCH" ] && [ -n "$PUSH_BRANCH" ] && \
+       [ "$CURRENT_BRANCH" != "$PUSH_BRANCH" ] && \
+       { [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; }; then
+        block "REMINDER: 'git push -u origin $PUSH_BRANCH' while on '$CURRENT_BRANCH' will set $CURRENT_BRANCH to track origin/$PUSH_BRANCH instead of origin/$CURRENT_BRANCH.
+
+This is the main-branch development pattern: push to a remote feature branch WITHOUT -u:
+  git push origin $CURRENT_BRANCH:$PUSH_BRANCH
+
+The -u flag is only correct when local and remote branch names match:
+  git push -u origin $CURRENT_BRANCH  (pushes main to origin/main)"
+    fi
+fi
+
+# Check for piped execution from network (curl/wget piped to shell)
+if echo "$COMMAND" | grep -Eq '(curl|wget)\s+.*\|\s*(bash|sh|zsh|sudo)'; then
+    block "REMINDER: Piping network content directly to a shell is dangerous.
+Instead:
+1. Download the script first: curl -o script.sh <url>
+2. Review the contents: Read tool on script.sh
+3. Execute if safe: bash script.sh
+
+This prevents executing untrusted code blindly."
+fi
+
+# Check for fork bombs and similar recursive patterns
+if echo "$COMMAND" | grep -Eq ':\(\)\s*\{.*\|.*&\s*\}\s*;' || \
+   echo "$COMMAND" | grep -Eq 'bomb\(\)\s*\{.*bomb.*bomb' || \
+   echo "$COMMAND" | grep -Eq '\bwhile\s+true.*fork\b'; then
+    block "REMINDER: This command contains a fork bomb or recursive process pattern that will consume all system resources."
+fi
+
+# Check for chmod 777 (overly permissive)
+if echo "$COMMAND" | grep -Eq 'chmod\s+(-R\s+)?777\b'; then
+    block "REMINDER: 'chmod 777' grants read/write/execute to everyone — this is a security risk.
+Use more restrictive permissions:
+- chmod 755 for directories and executables (owner: rwx, others: rx)
+- chmod 644 for regular files (owner: rw, others: r)
+- chmod 600 for sensitive files (owner: rw, others: none)"
+fi
+
+# Check for writes to block devices
+if echo "$COMMAND" | grep -Eq '>\s*/dev/(sd|hd|nvme|vd|xvd)[a-z]'; then
+    block "REMINDER: Writing directly to a block device will destroy the filesystem. This is almost certainly not what you want."
+fi
+
+# If we get here, the command is allowed
+exit 0

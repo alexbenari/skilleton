@@ -1,0 +1,80 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Run tests (release safety gate)
+        run: npm test
+
+      - name: Verify tag matches all manifest versions
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          PLUGIN_VERSION=$(node -p "require('./.claude-plugin/plugin.json').version")
+          MARKETPLACE_VERSION=$(node -p "require('./.claude-plugin/marketplace.json').plugins[0].version")
+          if [ "$TAG" != "$PKG_VERSION" ]; then
+            echo "::error::Tag v$TAG does not match package.json version v$PKG_VERSION"
+            exit 1
+          fi
+          if [ "$TAG" != "$PLUGIN_VERSION" ]; then
+            echo "::error::Tag v$TAG does not match .claude-plugin/plugin.json version v$PLUGIN_VERSION"
+            exit 1
+          fi
+          if [ "$TAG" != "$MARKETPLACE_VERSION" ]; then
+            echo "::error::Tag v$TAG does not match .claude-plugin/marketplace.json plugins[0].version v$MARKETPLACE_VERSION"
+            exit 1
+          fi
+          echo "Tag and all three manifest versions agree on v$TAG ✓"
+
+      - name: Extract changelog section for this release
+        id: changelog
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          # Extract the section from CHANGELOG.md whose heading matches "## [TAG]"
+          # up to (but not including) the next "## [" line. Handles missing sections gracefully.
+          NOTES=$(awk -v ver="$TAG" '
+            BEGIN { in_section = 0 }
+            /^## \[/ {
+              if (in_section) exit
+              if ($0 ~ "^## \\[" ver "\\]") { in_section = 1; next }
+            }
+            in_section { print }
+          ' CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            echo "::warning::No CHANGELOG.md section found for v$TAG. Release notes will be empty."
+            NOTES="See CHANGELOG.md for details."
+          fi
+          # Write to a file so backticks/dollar signs in the changelog don't get
+          # shell-interpolated when we hand the notes to gh release create.
+          printf '%s\n' "$NOTES" > release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            --latest

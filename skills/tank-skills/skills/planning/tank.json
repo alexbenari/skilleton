@@ -1,0 +1,22 @@
+{
+  "name": "@tank/planning",
+  "version": "2.1.0",
+  "description": "Planning methodology for complex tasks: decomposition, plan writing, execution, prioritization, estimation, risk assessment, and context management. Covers WBS, zero-context specs, batched execution, RICE/MoSCoW prioritization, and persistent state. Synthesized from Shape Up, Agile Estimating and Planning, ReAct.",
+  "permissions": {
+    "network": {
+      "outbound": []
+    },
+    "filesystem": {
+      "read": [
+        "**/*"
+      ],
+      "write": [
+        "task_plan.md",
+        "findings.md",
+        "progress.md"
+      ]
+    },
+    "subprocess": false
+  },
+  "repository": "https://github.com/tankpkg/skills"
+}

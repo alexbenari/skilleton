@@ -1,0 +1,151 @@
+# Changelog
+
+## [1.6.0](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.5.6...workflow-orchestration-plugin-v1.6.0) (2026-06-11)
+
+
+### Features
+
+* cold-read-gate + workflow-verify-before-filing skills ([#1588](https://github.com/laurigates/claude-plugins/issues/1588)) ([cec93b3](https://github.com/laurigates/claude-plugins/commit/cec93b3e4024cb02d29c962e6e809f82bfa08d60))
+
+## [1.5.6](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.5.5...workflow-orchestration-plugin-v1.5.6) (2026-06-10)
+
+
+### Code Refactoring
+
+* **workflow-orchestration-plugin:** extract workflow-preflight procedure to scripts + regression test ([#1567](https://github.com/laurigates/claude-plugins/issues/1567)) ([0cbe02a](https://github.com/laurigates/claude-plugins/commit/0cbe02aff2ba37c793dce4820bc0af5b784b378b))
+
+## [1.5.5](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.5.4...workflow-orchestration-plugin-v1.5.5) (2026-06-10)
+
+
+### Performance
+
+* **workflow-orchestration-plugin:** extract workflow-preflight state-gathering into preflight.sh ([#1562](https://github.com/laurigates/claude-plugins/issues/1562)) ([03abec0](https://github.com/laurigates/claude-plugins/commit/03abec0d396a0c503bb7c8697f5f6339996aa82f))
+
+## [1.5.4](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.5.3...workflow-orchestration-plugin-v1.5.4) (2026-06-04)
+
+
+### Bug Fixes
+
+* resolve actionable open issues ([#1424](https://github.com/laurigates/claude-plugins/issues/1424), [#1425](https://github.com/laurigates/claude-plugins/issues/1425), [#1463](https://github.com/laurigates/claude-plugins/issues/1463)) ([#1500](https://github.com/laurigates/claude-plugins/issues/1500)) ([81afcee](https://github.com/laurigates/claude-plugins/commit/81afceeb292fed2feac4a0580f92501564c95866))
+
+## [1.5.3](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.5.2...workflow-orchestration-plugin-v1.5.3) (2026-05-29)
+
+
+### Code Refactoring
+
+* **workflow-orchestration-plugin:** dedupe wave-dispatch against agent-patterns ([#1448](https://github.com/laurigates/claude-plugins/issues/1448)) ([f18d2c6](https://github.com/laurigates/claude-plugins/commit/f18d2c61d05a2e9069b353de313aa51c8727db17))
+
+## [1.5.2](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.5.1...workflow-orchestration-plugin-v1.5.2) (2026-05-14)
+
+
+### Code Refactoring
+
+* **workflow-orchestration-plugin:** further tighten descriptions under 180 chars ([85c010a](https://github.com/laurigates/claude-plugins/commit/85c010af5e728b9495b59e97bc1a6b8d8139abeb))
+* **workflow-orchestration-plugin:** tighten skill descriptions (continuation) ([107ce55](https://github.com/laurigates/claude-plugins/commit/107ce55cdcee6f0825d3447fcc6cdcb69ed02633))
+* **workflow-orchestration-plugin:** tighten skill descriptions for listing budget ([e2f8058](https://github.com/laurigates/claude-plugins/commit/e2f8058026d3e9760e79a52a44d767011b4be141))
+
+## [1.5.1](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.5.0...workflow-orchestration-plugin-v1.5.1) (2026-05-09)
+
+
+### Documentation
+
+* trim oversized SKILL.md descriptions across 41 plugins ([#1265](https://github.com/laurigates/claude-plugins/issues/1265)) ([e13d9f4](https://github.com/laurigates/claude-plugins/commit/e13d9f46a010559082c6d5eb61b0cb891843bf97))
+
+## [1.5.0](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.4.3...workflow-orchestration-plugin-v1.5.0) (2026-04-24)
+
+
+### Features
+
+* **workflow-orchestration-plugin:** add workflow-wave-dispatch skill ([#1132](https://github.com/laurigates/claude-plugins/issues/1132)) ([d21bc24](https://github.com/laurigates/claude-plugins/commit/d21bc2412826f89d4c5ea1abda011632edbe713f))
+
+## [1.4.3](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.4.2...workflow-orchestration-plugin-v1.4.3) (2026-04-15)
+
+
+### Documentation
+
+* **plugins:** add flow diagrams for router and pipeline plugins ([#1034](https://github.com/laurigates/claude-plugins/issues/1034)) ([a5e0e08](https://github.com/laurigates/claude-plugins/commit/a5e0e087495f0e835c3ad7e5dcf5bf7f4e61ad02))
+
+## [1.4.2](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.4.1...workflow-orchestration-plugin-v1.4.2) (2026-04-08)
+
+
+### Bug Fixes
+
+* **blueprint-plugin:** remove model field from skills and fix invocation syntax ([#1007](https://github.com/laurigates/claude-plugins/issues/1007)) ([42e1e5b](https://github.com/laurigates/claude-plugins/commit/42e1e5b6c73d43e5de4b27cdee16e316de44d4c0))
+
+## [1.4.1](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.4.0...workflow-orchestration-plugin-v1.4.1) (2026-03-09)
+
+
+### Bug Fixes
+
+* **finops-plugin,git-plugin:** replace gh repo view with git remote in context commands ([#913](https://github.com/laurigates/claude-plugins/issues/913)) ([f4cf31a](https://github.com/laurigates/claude-plugins/commit/f4cf31aebdc00d6a6d7ca911db3cf1534b13ce75))
+
+## [1.4.0](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.3.0...workflow-orchestration-plugin-v1.4.0) (2026-02-27)
+
+
+### Features
+
+* integrate worktree isolation into agent framework ([#830](https://github.com/laurigates/claude-plugins/issues/830)) ([564ffcf](https://github.com/laurigates/claude-plugins/commit/564ffcf8f34cf9d672816b42dabcf1280c701589))
+
+## [1.3.0](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.2.1...workflow-orchestration-plugin-v1.3.0) (2026-02-25)
+
+
+### Features
+
+* **python-plugin:** replace mypy with ty for type checking ([96a1aaa](https://github.com/laurigates/claude-plugins/commit/96a1aaa9c5f7e07725c72ce0a6f99f7fbf222d57))
+* replace mypy with ty for Python type checking ([#808](https://github.com/laurigates/claude-plugins/issues/808)) ([96a1aaa](https://github.com/laurigates/claude-plugins/commit/96a1aaa9c5f7e07725c72ce0a6f99f7fbf222d57))
+
+## [1.2.1](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.2.0...workflow-orchestration-plugin-v1.2.1) (2026-02-23)
+
+
+### Bug Fixes
+
+* remove 2&gt;/dev/null from context commands across all plugins ([#792](https://github.com/laurigates/claude-plugins/issues/792)) ([c72e67e](https://github.com/laurigates/claude-plugins/commit/c72e67ee37e809449f0e6282c48fac01363a59fd))
+
+## [1.2.0](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.1.4...workflow-orchestration-plugin-v1.2.0) (2026-02-18)
+
+
+### Features
+
+* introduce three-tier model palette (opus/sonnet/haiku) ([#709](https://github.com/laurigates/claude-plugins/issues/709)) ([2c1e9cc](https://github.com/laurigates/claude-plugins/commit/2c1e9ccff5d48c2b426beac5b3b38cd4576c79a0))
+
+## [1.1.4](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.1.3...workflow-orchestration-plugin-v1.1.4) (2026-02-16)
+
+
+### Bug Fixes
+
+* remove pipe/ls operators from context commands and add CI linting ([#653](https://github.com/laurigates/claude-plugins/issues/653)) ([7a01eef](https://github.com/laurigates/claude-plugins/commit/7a01eef21495ed6243277fbaa88082b7ecabc793))
+
+## [1.1.4](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.1.3...workflow-orchestration-plugin-v1.1.4) (2026-02-15)
+
+
+### Bug Fixes
+
+* remove pipe/ls operators from context commands and add CI linting ([#653](https://github.com/laurigates/claude-plugins/issues/653)) ([7a01eef](https://github.com/laurigates/claude-plugins/commit/7a01eef21495ed6243277fbaa88082b7ecabc793))
+
+## [1.1.3](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.1.2...workflow-orchestration-plugin-v1.1.3) (2026-02-15)
+
+
+### Bug Fixes
+
+* replace broken context command patterns in skill files ([#644](https://github.com/laurigates/claude-plugins/issues/644)) ([440ba34](https://github.com/laurigates/claude-plugins/commit/440ba347bcc73a0512f74975cfd6b4af9fe8566e))
+
+## [1.1.2](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.1.1...workflow-orchestration-plugin-v1.1.2) (2026-02-14)
+
+
+### Documentation
+
+* **git-plugin:** add conventional commits standards ([#616](https://github.com/laurigates/claude-plugins/issues/616)) ([5b74389](https://github.com/laurigates/claude-plugins/commit/5b74389ecdf5223dd62368390ecd9b36ccb1596c))
+
+## [1.1.1](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.1.0...workflow-orchestration-plugin-v1.1.1) (2026-02-14)
+
+
+### Code Refactoring
+
+* restructure 11 skills to execution pattern ([#609](https://github.com/laurigates/claude-plugins/issues/609)) ([0aff44a](https://github.com/laurigates/claude-plugins/commit/0aff44ae5768e3cd3aedfed568137738fc298bbc))
+
+## [1.1.0](https://github.com/laurigates/claude-plugins/compare/workflow-orchestration-plugin-v1.0.0...workflow-orchestration-plugin-v1.1.0) (2026-02-08)
+
+
+### Features
+
+* **workflow-orchestration-plugin:** add workflow orchestration plugin ([#514](https://github.com/laurigates/claude-plugins/issues/514)) ([676a485](https://github.com/laurigates/claude-plugins/commit/676a485b9a9b127bc34655021a15ab0b55784fb1))

@@ -1,0 +1,77 @@
+repos:
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.0
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: lint-context-commands
+        name: lint context commands
+        entry: ./scripts/lint-context-commands.sh
+        language: script
+        files: '(SKILL|skill)\.md$'
+        pass_filenames: false
+      - id: check-driver-freshness
+        name: check configure-repo driver freshness
+        entry: bash ./scripts/check-driver-freshness.sh
+        language: system
+        files: '(SKILL|skill)\.md$'
+        pass_filenames: false
+      - id: audit-skill-descriptions
+        name: audit skill descriptions for auto-invocation
+        entry: python3 ./scripts/audit-skill-descriptions.py --strict-all
+        language: system
+        files: '(SKILL|skill)\.md$'
+        pass_filenames: false
+      - id: audit-skill-description-length
+        name: audit skill descriptions for listing-budget verbosity (>300 chars)
+        entry: python3 ./scripts/audit-skill-descriptions.py --strict-length
+        language: system
+        files: '(SKILL|skill)\.md$'
+        pass_filenames: false
+      - id: lint-taskwarrior-tags
+        name: lint taskwarrior-plugin docs for hyphenated tag names
+        entry: ./scripts/lint-taskwarrior-tags.sh
+        language: script
+        files: '^taskwarrior-plugin/.*\.md$'
+        pass_filenames: false
+      - id: check-agent-tool-selection
+        name: every plugin agent embeds a Tool Selection section
+        entry: ./scripts/check-agent-tool-selection.sh
+        language: script
+        files: '/agents/.*\.md$'
+        pass_filenames: false
+      - id: check-agent-failure-contract
+        name: dispatch skills carry the loud-failure contract (#1422)
+        entry: ./scripts/check-agent-failure-contract.sh
+        language: script
+        files: '^agent-patterns-plugin/skills/(parallel-agent-dispatch|custom-agent-definitions)/SKILL\.md$'
+        pass_filenames: false
+      - id: lint-mcp-tool-references
+        name: lint skill files for references to unavailable MCP tools
+        entry: ./scripts/lint-mcp-tool-references.sh
+        language: script
+        files: '(SKILL\.md|skill\.md|REFERENCE\.md)$'
+        pass_filenames: false
+      - id: lint-package-references
+        name: lint skill files for references to nonexistent packages (npm/PyPI/crates/etc.)
+        entry: ./scripts/lint-package-references.sh
+        language: script
+        files: '(SKILL\.md|skill\.md|REFERENCE\.md)$'
+        pass_filenames: false
+      - id: check-version-pin-coverage
+        name: skill version pins are a Renovate-managed shape (version-pinning.md)
+        entry: bash ./scripts/check-version-pin-coverage.sh --strict
+        language: system
+        files: '/skills/.*\.md$'
+        pass_filenames: false
+      - id: check-enabled-plugins-drift
+        name: enabledPlugins matches the marketplace (plugin-enablement-drift)
+        entry: bash ./scripts/check-enabled-plugins-drift.sh --strict
+        language: system
+        files: '^(\.claude-plugin/marketplace\.json|\.claude/settings\.json)$'
+        pass_filenames: false

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "health-plugin",
+  "version": "1.13.0",
+  "description": "Diagnose and fix Claude Code configuration issues including plugin registry, settings, hooks, MCP servers, SessionStart executability, pre-commit validity, permissions coverage, and marketplace enrollment",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/health-drift-probe.sh",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
+  },
+  "keywords": [
+    "health",
+    "diagnostics",
+    "troubleshooting",
+    "plugins",
+    "settings",
+    "hooks",
+    "mcp",
+    "configuration",
+    "agentic",
+    "optimization",
+    "fix",
+    "repair",
+    "marketplace",
+    "permissions",
+    "session-start",
+    "pre-commit"
+  ]
+}

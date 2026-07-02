@@ -1,0 +1,844 @@
+"""Tests for health-check.py + health-check.{sh,ps1} wrappers.
+
+Covers the 9 structural Health checks + 3 Substance heuristics defined in
+skills/implement-review/SKILL.md > Phase 2.0 prologue. The Python helper
+contains the real logic; the shell wrappers are exercised by smoke tests to
+confirm they delegate correctly.
+"""
+from __future__ import annotations
+
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = ROOT / "skills" / "implement-review" / "scripts"
+HEALTH_PY = SCRIPTS_DIR / "health-check.py"
+HEALTH_SH = SCRIPTS_DIR / "health-check.sh"
+HEALTH_PS1 = SCRIPTS_DIR / "health-check.ps1"
+
+BASH = shutil.which("bash")
+PS_SHELL = shutil.which("pwsh") or shutil.which("powershell")
+
+
+def parse_output(stdout: str) -> dict[str, tuple[str, str]]:
+    """Parse health-check output into {code: (kind, rest_of_line)}.
+
+    Each line has shape: KIND code [details...]. Returns dict keyed by code.
+    """
+    out: dict[str, tuple[str, str]] = {}
+    for raw in stdout.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        parts = line.split(maxsplit=2)
+        if len(parts) < 2:
+            continue
+        kind, code = parts[0], parts[1]
+        rest = parts[2] if len(parts) > 2 else ""
+        out[code] = (kind, rest)
+    return out
+
+
+def make_review(
+    path: Path,
+    round_num: int = 1,
+    extra_body: str = "",
+    include_verification_notes: bool = True,
+    pad_to: int = 600,
+) -> str:
+    """Build a minimally-valid review file at `path`."""
+    parts = [f"<!-- Round {round_num} -->", "", "# Review", ""]
+    if include_verification_notes:
+        parts.extend(["Verification notes: spot-checked source code.", ""])
+    if extra_body:
+        parts.append(extra_body)
+    body = "\n".join(parts) + "\n"
+    if len(body) < pad_to:
+        body += "Filler content. " * ((pad_to - len(body)) // 16 + 1)
+    path.write_text(body, encoding="utf-8")
+    return body
+
+
+def make_state_dir(
+    parent: Path,
+    *,
+    with_tail: bool = True,
+    tail_content: str = "mock codex stdout\nmock codex stderr\n",
+    tail_stderr_content: str | None = None,
+    with_stall: bool = False,
+    stall_content: str = "STALL 2026-05-15T12:00:00Z tail-no-growth-for-300s\n",
+    pre_mtime: int = 0,
+    dispatch_offset: int = 60,
+    skip_pre_mtime: bool = False,
+    skip_timestamp: bool = False,
+) -> Path:
+    """Create a state-dir under `parent/state` with the requested fixture state.
+
+    dispatch_offset = seconds *before now* for the dispatch timestamp.
+    Negative offset puts the dispatch timestamp in the future (for Check 2 FAIL).
+    """
+    state_dir = parent / "state"
+    state_dir.mkdir()
+    now = int(time.time())
+    dispatch_time = now - dispatch_offset
+    if not skip_pre_mtime:
+        (state_dir / "pre-mtime").write_text(f"{pre_mtime}\n", encoding="utf-8")
+    if not skip_timestamp:
+        (state_dir / "timestamp").write_text(f"{dispatch_time}\n", encoding="utf-8")
+    if with_tail:
+        (state_dir / "tail").write_text(tail_content, encoding="utf-8")
+    if tail_stderr_content is not None:
+        (state_dir / "tail.stderr-tmp").write_text(
+            tail_stderr_content, encoding="utf-8"
+        )
+    if with_stall:
+        (state_dir / "stall-warning").write_text(stall_content, encoding="utf-8")
+    return state_dir
+
+
+def run_health_py(
+    state_dir: Path,
+    review_file: Path,
+    round_num: int = 1,
+    *,
+    prompt_file: Path | None = None,
+    lens: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    cmd = [
+        sys.executable, str(HEALTH_PY),
+        "--state-dir", str(state_dir),
+        "--review-file", str(review_file),
+        "--round", str(round_num),
+    ]
+    if prompt_file is not None:
+        cmd += ["--prompt-file", str(prompt_file)]
+    if lens is not None:
+        cmd += ["--lens", lens]
+    return subprocess.run(
+        cmd, capture_output=True, text=True, check=False, timeout=30
+    )
+
+
+class HealthCheckPython(unittest.TestCase):
+    """Direct tests against health-check.py."""
+
+    # ----- happy path -----
+    def test_all_pass_for_well_formed_review(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(td_path, dispatch_offset=60)
+            result = run_health_py(state, review, round_num=1)
+            self.assertEqual(
+                result.returncode, 0,
+                f"happy path must exit 0; stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}",
+            )
+            parsed = parse_output(result.stdout)
+            for code in ("check-1", "check-2", "check-3", "check-4", "check-5"):
+                self.assertEqual(
+                    parsed[code][0], "PASS",
+                    f"{code} should PASS for well-formed review; "
+                    f"got {parsed[code]}",
+                )
+
+    # ----- Check 1: review file missing -----
+    def test_check1_missing_review(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            state = make_state_dir(td_path)
+            result = run_health_py(
+                state, td_path / "Review-Nonexistent.md", round_num=1
+            )
+            self.assertEqual(result.returncode, 1)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-1"][0], "FAIL")
+
+    # ----- Check 2: freshness -----
+    def test_check2_stale_review_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            # Dispatch happens in the future -> review mtime is BEFORE dispatch_time
+            state = make_state_dir(td_path, dispatch_offset=-3600)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 1)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-2"][0], "FAIL")
+
+    # ----- Check 3: wrong round marker -----
+    def test_check3_wrong_round_marker_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review, round_num=2)  # marker says Round 2
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review, round_num=1)  # but we asked Round 1
+            self.assertEqual(result.returncode, 1)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-3"][0], "FAIL")
+
+    # ----- Check 4: tiny review -----
+    def test_check4_tiny_review_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            # Force a tiny file (round marker + verification notes, no padding)
+            review.write_text(
+                "<!-- Round 1 -->\n# Review\nVerification notes: ok.\n",
+                encoding="utf-8",
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 1)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-4"][0], "FAIL")
+
+    # ----- Check 5: verification notes missing -----
+    def test_check5_missing_verification_notes_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review, include_verification_notes=False)
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 1)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-5"][0], "FAIL")
+
+    def test_check5_accepts_bold_sentence_verification_notes(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(
+                review,
+                include_verification_notes=False,
+                extra_body="**Verification notes.** none.\n",
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-5"][0], "PASS")
+
+    def test_check5_accepts_heading_levels(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(
+                review,
+                include_verification_notes=False,
+                extra_body="### Verification notes\nnone.\n",
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-5"][0], "PASS")
+
+    # ----- Check 6: scope correspondence -----
+    def test_check6_prompt_files_not_mentioned_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review, extra_body="The review covered some files.")
+            prompt = td_path / "prompt.txt"
+            prompt.write_text(
+                "Review the staged file `skills/implement-review/SKILL.md` "
+                "for clarity.",
+                encoding="utf-8",
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review, prompt_file=prompt)
+            self.assertEqual(result.returncode, 1)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-6"][0], "FAIL")
+
+    def test_check6_prompt_files_mentioned_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(
+                review,
+                extra_body="I checked skills/implement-review/SKILL.md carefully.",
+            )
+            prompt = td_path / "prompt.txt"
+            prompt.write_text(
+                "Review the staged file `skills/implement-review/SKILL.md`.",
+                encoding="utf-8",
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review, prompt_file=prompt)
+            self.assertEqual(result.returncode, 0)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-6"][0], "PASS")
+
+    # ----- Check 7: suspicious phrases -----
+    def test_check7_warns_on_suspicious_phrases(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(
+                review,
+                extra_body=(
+                    "I could not read the source file.\n"
+                    "Rate limit hit during inspection.\n"
+                ),
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 0,
+                             "WARN-only must still exit 0")
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-7"][0], "WARN")
+            self.assertIn("lines=", parsed["check-7"][1])
+
+    def test_check7_ignores_phrases_in_backticks(self) -> None:
+        """FP-tune: Codex meta-discussing the pattern list must not fire."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(
+                review,
+                extra_body=(
+                    "The pattern list includes `could not`, `failed to`, "
+                    "`rate limit` -- this is discussion, not failure.\n"
+                ),
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 0)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(
+                parsed["check-7"][0], "PASS",
+                f"backtick code spans must be excluded: {parsed['check-7']}",
+            )
+
+    def test_check7_ignores_phrases_in_fenced_code_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(
+                review,
+                extra_body=(
+                    "Example failure log inside a fence:\n"
+                    "```\n"
+                    "ERROR: could not connect\n"
+                    "ERROR: rate limit\n"
+                    "```\n"
+                    "End of example.\n"
+                ),
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-7"][0], "PASS")
+
+    # ----- Check 8: tool failures in dispatch tail -----
+    def test_check8_warns_on_tail_tool_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(
+                td_path,
+                tail_content=(
+                    "running tool foo\n"
+                    "ERROR: HTTP/1.1 429 too many requests\n"
+                    "ERROR: tool github_api failed\n"
+                ),
+            )
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 0)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-8"][0], "WARN")
+
+    def test_check8_warns_on_stderr_side_tail_tool_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(
+                td_path,
+                tail_content="clean stdout\n",
+                tail_stderr_content="ERROR: tool file_write failed\n",
+            )
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 0)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-8"][0], "WARN")
+
+    def _assert_check8_warn(self, tail_content: str) -> None:
+        """Run health-check.py with the given tail and assert Check 8 WARN."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(td_path, tail_content=tail_content)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 0)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(
+                parsed["check-8"][0], "WARN",
+                f"expected WARN for tail {tail_content!r}, got {parsed['check-8']}",
+            )
+            self.assertIn("tool-failure-markers", parsed["check-8"][1])
+
+    def _assert_check8_pass(self, tail_content: str) -> None:
+        """Run health-check.py with the given tail and assert Check 8 PASS."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(td_path, tail_content=tail_content)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 0)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(
+                parsed["check-8"][0], "PASS",
+                f"expected PASS for tail {tail_content!r}, got {parsed['check-8']}",
+            )
+
+    def test_check8_warns_on_createprocessasuserw_1312_alone(self) -> None:
+        """Isolated fixture: only the exact CreateProcessAsUserW 1312 marker.
+
+        Tail has no `sandbox`, no `runner error`, no other Check 8 trigger.
+        If `r"CreateProcessAsUserW failed: 1312"` were removed from
+        TOOL_FAILURE_PATTERNS, this fixture would no longer match anything
+        in the pattern set and the test would fail. Freezes that pattern's
+        necessity independently of the other two new sandbox patterns.
+        """
+        self._assert_check8_warn(
+            "ERROR codex_core::process: launch failed; "
+            "CreateProcessAsUserW failed: 1312\n"
+        )
+
+    def test_check8_warns_on_windows_sandbox_runner_error_alone(self) -> None:
+        """Isolated fixture: `windows sandbox: runner error` without 1312.
+
+        Tail does NOT contain `CreateProcessAsUserW failed: 1312` and does
+        not match HTTP/connection/quota patterns. If both
+        `r"windows sandbox: runner error"` AND the broader
+        `r"sandbox.*runner error"` were removed, this fixture would no
+        longer match. Practically: pattern #2 is fully subsumed by
+        pattern #3 (`sandbox.*runner error` matches the same string via
+        the `.*`), so this test pins the joint coverage rather than #2
+        in isolation. Keeping #2 explicit is defensive: it surfaces in
+        SKILL.md Check 8 description as the canonical Windows shape.
+        """
+        self._assert_check8_warn(
+            "ERROR codex_core::exec: exec error: "
+            "windows sandbox: runner error\n"
+        )
+
+    def test_check8_warns_on_generic_sandbox_runner_error(self) -> None:
+        """Catch-all fixture: `sandbox` + `runner error` without `windows`.
+
+        Targets `r"sandbox.*runner error"` specifically. The literal
+        `r"windows sandbox: runner error"` pattern would NOT match this
+        line (no `windows` prefix); only the broader regex covers it.
+        Freezes the broader pattern's value: cross-version / cross-
+        platform variants Codex might emit.
+        """
+        self._assert_check8_warn(
+            "ERROR codex_core::exec: macos sandbox: command runner error: "
+            "spawn failed\n"
+        )
+
+    def test_check8_passes_on_sandbox_word_without_runner_error(self) -> None:
+        """Negative fixture: `sandbox` mention without `runner error` or 1312.
+
+        Ensures the broader `r"sandbox.*runner error"` catch-all does not
+        drift into matching benign `sandbox` mentions. Without this
+        negative, a future regex weakening (e.g. dropping `runner error`
+        from the pattern) would silently pass the positive tests above
+        AND start firing on every codex log line that mentioned sandbox
+        at all.
+        """
+        self._assert_check8_pass(
+            "INFO codex_core::config: using sandbox policy: workspace-write\n"
+        )
+
+    def test_check8_passes_on_backtick_quoted_pattern_strings(self) -> None:
+        """Inline backtick-quoted pattern strings in Codex reasoning text
+        must NOT trigger Check 8.
+
+        Regression: when /implement-review reviews the implement-review
+        skill itself (or any prompt that names the patterns), Codex's
+        stdout reasoning quotes the pattern strings with backticks for
+        technical clarity. Pre-fix this produced 12-152 FP markers across
+        4 confirmed runs (ac self-review r2/r3, random, NSF, Letter-).
+        Mitigation mirrors Check 7's `strip_code_spans` pass.
+        """
+        self._assert_check8_pass(
+            "Codex reasoning: I need to scan for `CreateProcessAsUserW failed: 1312`\n"
+            "and `windows sandbox: runner error` in the dispatch tail.\n"
+            "The pattern `rate limit` is also relevant for 429 surfaces.\n"
+        )
+
+    def test_check8_passes_on_fenced_block_with_pattern_strings(self) -> None:
+        """Triple-backtick fenced blocks (e.g., Codex echoing a SKILL.md
+        snippet that lists pattern strings) must be stripped before
+        scanning. Mirror of Check 7's fenced-block handling.
+        """
+        self._assert_check8_pass(
+            "Codex reasoning: I read the skill, which states:\n"
+            "```\n"
+            "Windows sandbox launch failures such as CreateProcessAsUserW failed: 1312\n"
+            "or windows sandbox: runner error, plus rate limit / quota exceeded.\n"
+            "```\n"
+            "End of skill quote.\n"
+        )
+
+    def test_check8_warn_emits_pattern_breakdown(self) -> None:
+        """When Check 8 WARNs, the line includes a `breakdown=` segment
+        with per-pattern counts sorted by frequency. This is what lets
+        downstream Claude recognize WSL-stub-bash 1312 burst (and other
+        known-noise shapes catalogued in SKILL.md FP-tuning) without
+        re-grepping the tail.
+        """
+        # Mix of patterns with distinct counts so order is deterministic.
+        # 3 windows sandbox + 2 rate limit + 1 http 429.
+        tail = (
+            "windows sandbox: runner error\n"
+            "windows sandbox: runner error\n"
+            "windows sandbox: runner error\n"
+            "rate limit\n"
+            "rate limit\n"
+            "HTTP/1.1 429 Too Many Requests\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(td_path, tail_content=tail)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 0)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-8"][0], "WARN")
+            self.assertIn("tool-failure-markers", parsed["check-8"][1])
+            self.assertIn("breakdown=", parsed["check-8"][1])
+            breakdown_segment = parsed["check-8"][1].split("breakdown=", 1)[1]
+            # Pull labels in order: each `label:N` token.
+            labels = [seg.split(":")[0] for seg in breakdown_segment.split()]
+            # Labels must be sorted by count descending. With this tail
+            # `windows` (3 hits) and `sandbox` (3 hits via two distinct
+            # patterns) precede `limit` (2 hits) which precedes `429`
+            # (1 hit).
+            for top_label in ("windows", "sandbox"):
+                self.assertLess(
+                    labels.index(top_label),
+                    labels.index("limit"),
+                    f"breakdown not sorted by count desc: {breakdown_segment!r}",
+                )
+            # Pattern `HTTP/\S* (?:429|5\d\d)` yields label `http`
+            # (longest word run in the pattern source) with 1 hit; must
+            # come after `limit` (2 hits).
+            self.assertLess(
+                labels.index("limit"),
+                labels.index("http"),
+                f"breakdown not sorted by count desc: {breakdown_segment!r}",
+            )
+
+    def test_check8_warns_when_tail_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(td_path, with_tail=False)
+            result = run_health_py(state, review)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-8"][0], "WARN")
+            self.assertIn("missing-dispatch-tail", parsed["check-8"][1])
+
+    # ----- Check 8 Fix A (line-level echo classifier) + Fix B (two-tier) -----
+    # Real-failure-wins: a real failure must keep WARNing even when it looks
+    # line-numbered or carries a backslash path. Validated live against the
+    # preserved R1 dispatch tail; these freeze the shapes permanently.
+    def test_check8_warns_on_line_numbered_real_diagnostic(self) -> None:
+        """A line-numbered line that begins (after the number prefix) with a
+        runner/log diagnostic token is a REAL failure, not a source echo, and
+        must still WARN. Echo suppression must never drop it."""
+        self._assert_check8_warn("12: ERROR: HTTP/1.1 429 too many requests\n")
+
+    def test_check8_warns_on_windows_path_eacces(self) -> None:
+        """A real EACCES failure on a Windows path (backslashes) must WARN. A
+        bare backslash must NEVER classify a line as a regex-source echo, or
+        real Windows-path failures would be silently dropped."""
+        self._assert_check8_warn(
+            "ERROR: EACCES opening C:\\Users\\me\\Review-Codex.md\n"
+        )
+
+    def test_check8_warns_on_rate_limit_exceeded_intrinsic(self) -> None:
+        """The failure FORM `rate limit exceeded` is intrinsic and counts on its
+        own, with no error-frame token required. Closes the R3 false-negative
+        where a bare `Rate limit exceeded` line was dropped as generic."""
+        self._assert_check8_warn("Rate limit exceeded after 3 retries\n")
+
+    def test_check8_warns_on_too_many_requests_intrinsic(self) -> None:
+        """`Too Many Requests` (the 429 text form) is intrinsic; counts alone."""
+        self._assert_check8_warn("Too Many Requests\n")
+
+    def test_check8_passes_on_line_numbered_source_citation(self) -> None:
+        """A line-numbered source citation (codex quoting a file with line
+        numbers) whose content is neither a diagnostic nor an intrinsic pattern
+        is a benign echo and must NOT count."""
+        self._assert_check8_pass(
+            "61: token co-occurs with an error-frame token on the same line\n"
+        )
+
+    def test_check8_passes_on_literal_regex_source_line(self) -> None:
+        r"""A line quoting a health-check pattern definition (regex
+        metacharacters like ``\S`` / ``(?:`` / ``\bENOSPC\b``) is a benign echo
+        and must NOT count. This is the dominant self-review FP source."""
+        self._assert_check8_pass(
+            '50: r"HTTP/\\S* (?:429|5\\d\\d)",\n'
+            '51: r"\\bENOSPC\\b",\n'
+        )
+
+    def test_check8_passes_on_bare_rate_limit_without_frame(self) -> None:
+        """Bare `rate limit` in benign prose, with no error-frame token nearby,
+        must NOT count (Fix B generic rule)."""
+        self._assert_check8_pass(
+            "the rate limit is 100 requests per minute by design\n"
+        )
+
+    def test_check8_warns_on_bare_rate_limit_with_frame(self) -> None:
+        """Bare `rate limit` WITH an error-frame token on the same line counts
+        (Fix B generic rule)."""
+        self._assert_check8_warn("ERROR: rate limit was hit during the run\n")
+
+    # ----- Check 9: stall warning -----
+    def test_check9_warns_when_stall_warning_present(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(td_path, with_stall=True)
+            result = run_health_py(state, review)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["check-9"][0], "WARN")
+            self.assertIn("stall-periods", parsed["check-9"][1])
+
+    # ----- State contract -----
+    def test_state_contract_missing_pre_mtime_is_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(td_path, skip_pre_mtime=True)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("FAIL state-contract", result.stdout)
+
+    def test_state_contract_missing_timestamp_is_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            state = make_state_dir(td_path, skip_timestamp=True)
+            result = run_health_py(state, review)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("FAIL state-contract", result.stdout)
+
+    def test_state_contract_missing_state_dir_is_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            result = run_health_py(
+                td_path / "nonexistent-state-dir", review
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("FAIL state-contract", result.stdout)
+
+    # ----- Substance 1: time floor -----
+    def test_substance1_warns_on_fast_completion_with_long_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            prompt = td_path / "prompt.txt"
+            prompt.write_text("X" * 2500, encoding="utf-8")
+            # dispatch was 5 seconds ago, review just written -> elapsed ~5s
+            state = make_state_dir(td_path, dispatch_offset=5)
+            result = run_health_py(state, review, prompt_file=prompt)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["substance-1"][0], "WARN",
+                             f"got {parsed['substance-1']}")
+
+    def test_substance1_passes_when_prompt_short(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            prompt = td_path / "prompt.txt"
+            prompt.write_text("short prompt only.", encoding="utf-8")
+            state = make_state_dir(td_path, dispatch_offset=5)
+            result = run_health_py(state, review, prompt_file=prompt)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["substance-1"][0], "PASS")
+
+    def test_substance1_passes_when_elapsed_above_floor(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review)
+            prompt = td_path / "prompt.txt"
+            prompt.write_text("X" * 2500, encoding="utf-8")
+            state = make_state_dir(td_path, dispatch_offset=60)
+            result = run_health_py(state, review, prompt_file=prompt)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["substance-1"][0], "PASS")
+
+    # ----- Substance 2: anchor density -----
+    def test_substance2_warns_on_long_review_with_no_anchors(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            # Long generic prose, no file:line anchors
+            make_review(
+                review,
+                extra_body="Generic discussion. " * 200,
+                pad_to=2000,
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["substance-2"][0], "WARN")
+            self.assertIn("0-anchors", parsed["substance-2"][1])
+
+    def test_substance2_passes_when_anchors_present(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(
+                review,
+                extra_body=(
+                    "I checked `skills/implement-review/SKILL.md:223` and "
+                    "line 234 of dispatch-codex.sh.\n"
+                    + ("Filler. " * 100)
+                ),
+                pad_to=1500,
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review)
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["substance-2"][0], "PASS")
+
+    # ----- Substance 3: scope-challenge axes (plan-review lens only) -----
+    def test_substance3_warns_when_axes_missing_under_plan_review_lens(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(
+                review,
+                extra_body="Plain prose without scope-challenge keywords.",
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review, lens="plan-review")
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["substance-3"][0], "WARN")
+            self.assertIn("missing-axes=", parsed["substance-3"][1])
+
+    def test_substance3_passes_when_all_axes_engaged(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(
+                review,
+                extra_body=(
+                    "Scope position: this is the smallest path forward. "
+                    "Considered a larger scope but rejected. "
+                    "Deferral of further work is appropriate to avoid "
+                    "process tax overhead. The simplest path is to ship now."
+                ),
+            )
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review, lens="plan-review")
+            parsed = parse_output(result.stdout)
+            self.assertEqual(
+                parsed["substance-3"][0], "PASS",
+                f"all axes should be engaged; got {parsed['substance-3']}",
+            )
+
+    def test_substance3_skipped_for_non_plan_lens(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            review = td_path / "Review-Codex.md"
+            make_review(review, extra_body="Plain prose without scope keywords.")
+            state = make_state_dir(td_path)
+            result = run_health_py(state, review, lens="code")
+            parsed = parse_output(result.stdout)
+            self.assertEqual(parsed["substance-3"][0], "PASS")
+            self.assertIn("non-plan-review-lens-skipped", parsed["substance-3"][1])
+
+
+class HealthCheckWrappers(unittest.TestCase):
+    """Smoke tests: shell wrappers delegate to Python helper correctly."""
+
+    def _build_fixture(self, td_path: Path) -> tuple[Path, Path]:
+        review = td_path / "Review-Codex.md"
+        make_review(review)
+        state = make_state_dir(td_path)
+        return state, review
+
+    @unittest.skipIf(
+        sys.platform.startswith("win"),
+        "bash skipped on Windows; CI Linux covers .sh wrapper",
+    )
+    @unittest.skipUnless(BASH, "bash not on PATH")
+    def test_sh_wrapper_delegates_to_python(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            state, review = self._build_fixture(Path(td))
+            cmd = [
+                BASH, str(HEALTH_SH),
+                "--state-dir", str(state),
+                "--review-file", str(review),
+                "--round", "1",
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=30
+            )
+            self.assertEqual(result.returncode, 0,
+                             f"sh wrapper failed: {result.stderr}")
+            self.assertIn("PASS check-1", result.stdout)
+
+    @unittest.skipUnless(PS_SHELL, "pwsh/powershell not available")
+    def test_ps1_wrapper_delegates_to_python(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            state, review = self._build_fixture(Path(td))
+            cmd = [
+                PS_SHELL, "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", str(HEALTH_PS1),
+                "--state-dir", str(state),
+                "--review-file", str(review),
+                "--round", "1",
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=30
+            )
+            self.assertEqual(result.returncode, 0,
+                             f"ps1 wrapper failed: {result.stderr}")
+            self.assertIn("PASS check-1", result.stdout)
+
+
+class HealthCheckScriptsTracked(unittest.TestCase):
+    def test_py_exists(self) -> None:
+        self.assertTrue(HEALTH_PY.exists())
+
+    def test_sh_exists(self) -> None:
+        self.assertTrue(HEALTH_SH.exists())
+
+    def test_ps1_exists(self) -> None:
+        self.assertTrue(HEALTH_PS1.exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

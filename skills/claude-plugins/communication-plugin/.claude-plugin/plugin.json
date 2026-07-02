@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "communication-plugin",
+  "version": "1.2.4",
+  "description": "External communication formatting - Google Chat, ticket drafting",
+  "keywords": [
+    "communication",
+    "google-chat",
+    "formatting",
+    "tickets"
+  ]
+}

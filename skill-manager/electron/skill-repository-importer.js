@@ -1,4 +1,5 @@
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
 
@@ -20,11 +21,13 @@ class SkillRepositoryImporter {
     discovery,
     fileSystem = fs,
     runGit = defaultRunGit,
+    tempRootPath = os.tmpdir(),
   } = {}) {
     this.db = db;
     this.discovery = discovery;
     this.fileSystem = fileSystem;
     this.runGit = runGit;
+    this.tempRootPath = tempRootPath;
   }
 
   normalizeRepoUrl(repoUrl) {
@@ -82,89 +85,263 @@ class SkillRepositoryImporter {
   }
 
   cleanupClonedDestination({ libraryRoot, destination }) {
-    const resolvedLibraryRoot = path.resolve(libraryRoot);
-    const resolvedDestination = path.resolve(destination);
-    const relative = path.relative(resolvedLibraryRoot, resolvedDestination);
+    return this.cleanupPathWithinRoot({ rootPath: libraryRoot, targetPath: destination });
+  }
+
+  cleanupPathWithinRoot({ rootPath, targetPath }) {
+    const resolvedRootPath = path.resolve(rootPath);
+    const resolvedTargetPath = path.resolve(targetPath);
+    const relative = path.relative(resolvedRootPath, resolvedTargetPath);
     if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
       throw new SkillRepositoryImporterError(
-        `Refusing to delete path outside the selected library root: ${resolvedDestination}`
+        `Refusing to delete path outside the selected library root: ${resolvedTargetPath}`
       );
     }
-    if (this.fileSystem.existsSync(resolvedDestination)) {
-      this.fileSystem.rmSync(resolvedDestination, { recursive: true, force: true });
+    if (this.fileSystem.existsSync(resolvedTargetPath)) {
+      this.fileSystem.rmSync(resolvedTargetPath, { recursive: true, force: true });
     }
-    return { destination: resolvedDestination, status: "deleted" };
+    return { destination: resolvedTargetPath, status: "deleted" };
+  }
+
+  createTempImportParent() {
+    const tempBasePath = path.join(this.tempRootPath, "skill-manager");
+    this.fileSystem.mkdirSync(tempBasePath, { recursive: true });
+    return this.fileSystem.mkdtempSync(path.join(tempBasePath, "repo-import-"));
+  }
+
+  cleanupTempImportParent(tempImportParent) {
+    if (!tempImportParent || !this.fileSystem.existsSync(tempImportParent)) {
+      return;
+    }
+    this.fileSystem.rmSync(tempImportParent, { recursive: true, force: true });
+  }
+
+  readGitProvenance(repoPath) {
+    let gitImportedRevision;
+    try {
+      gitImportedRevision = this.runGit(["rev-parse", "HEAD"], repoPath);
+    } catch (error) {
+      throw new SkillRepositoryImporterError(
+        `Failed to read imported revision from ${repoPath}: ${error.message}`
+      );
+    }
+
+    let gitTrackedRef = null;
+    try {
+      const headRef = this.runGit(["symbolic-ref", "--short", "HEAD"], repoPath);
+      if (headRef && headRef !== "HEAD") {
+        gitTrackedRef = headRef;
+      }
+    } catch {
+      gitTrackedRef = null;
+    }
+
+    return {
+      gitTrackedRef,
+      gitImportedRevision,
+    };
+  }
+
+  translateSkillPathToLibrary(skillPath, tempImportParent, libraryRoot) {
+    const relativeSkillPath = path.relative(path.resolve(tempImportParent), path.resolve(skillPath));
+    if (!relativeSkillPath || relativeSkillPath.startsWith("..") || path.isAbsolute(relativeSkillPath)) {
+      throw new SkillRepositoryImporterError(
+        `Discovered skill path was outside the temp import parent: ${skillPath}`
+      );
+    }
+    return path.join(libraryRoot, relativeSkillPath);
+  }
+
+  discoveredSkillsForImport({
+    tempImportParent,
+    tempClonePath,
+    libraryRoot,
+    repoUrl,
+    gitTrackedRef,
+    gitImportedRevision,
+  }) {
+    const { found, collisions } = this.discovery.discoverSkillsUnderPath(tempImportParent, tempClonePath);
+    this.discovery.failOnCollisions(collisions, SkillRepositoryImporterError);
+
+    return Array.from(found.values())
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((skill) => ({
+        name: skill.name,
+        localPath: this.translateSkillPathToLibrary(
+          skill.localPath || skill.path,
+          tempImportParent,
+          libraryRoot
+        ),
+        description: skill.description,
+        source: skill.source,
+        gitSourceUrl: repoUrl,
+        gitTrackedRef,
+        gitImportedRevision,
+      }));
+  }
+
+  copyRepoTreeExcludingGit(sourcePath, destinationPath) {
+    this.fileSystem.mkdirSync(destinationPath, { recursive: true });
+    const entries = this.fileSystem.readdirSync(sourcePath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.name === ".git") {
+        continue;
+      }
+
+      const sourceEntryPath = path.join(sourcePath, entry.name);
+      const destinationEntryPath = path.join(destinationPath, entry.name);
+
+      if (entry.isDirectory()) {
+        this.copyRepoTreeExcludingGit(sourceEntryPath, destinationEntryPath);
+        continue;
+      }
+
+      if (entry.isFile()) {
+        this.fileSystem.copyFileSync(sourceEntryPath, destinationEntryPath);
+        continue;
+      }
+
+      throw new SkillRepositoryImporterError(
+        `Unsupported filesystem entry during import: ${sourceEntryPath}`
+      );
+    }
+  }
+
+  duplicateNameResult({ discoveredSkills, existingSkillsByName, repoUrl, destination, libraryRoot, repoName }) {
+    for (const skill of discoveredSkills) {
+      const existing = existingSkillsByName.get(skill.name);
+      if (!existing) {
+        continue;
+      }
+
+      return {
+        status: "duplicate-name",
+        repoUrl,
+        destination,
+        libraryRoot,
+        repoName,
+        duplicateName: skill.name,
+        existingSkillId: existing.id,
+        existingSkillLocalPath: existing.localPath,
+        newSkillLocalPath: skill.localPath,
+        newSkillRelativePath: path.relative(destination, skill.localPath),
+      };
+    }
+
+    return null;
   }
 
   addSkillsFromRepository({ libraryId, libraryRoot, repoUrl }) {
     const trimmedUrl = this.normalizeRepoUrl(repoUrl);
     const repoName = this.repoNameFromUrl(trimmedUrl);
     const destination = path.join(libraryRoot, repoName);
-
-    if (this.fileSystem.existsSync(destination)) {
-      throw new SkillRepositoryImporterError(
-        `Destination already exists in the library root: ${destination}`
-      );
-    }
+    let tempImportParent = null;
+    let tempClonePath = null;
+    let destinationWritten = false;
+    let result = null;
+    let failure = null;
 
     try {
-      this.runGit(["clone", trimmedUrl, destination], libraryRoot);
-    } catch (error) {
-      throw new SkillRepositoryImporterError(`Failed to clone ${trimmedUrl}: ${error.message}`);
-    }
+      if (this.fileSystem.existsSync(destination)) {
+        throw new SkillRepositoryImporterError(
+          `Destination already exists in the library root: ${destination}`
+        );
+      }
 
-    const { found, collisions } = this.discovery.discoverSkillsUnderPath(libraryRoot, destination);
-    this.discovery.failOnCollisions(collisions, SkillRepositoryImporterError);
+      tempImportParent = this.createTempImportParent();
+      tempClonePath = path.join(tempImportParent, repoName);
 
-    const discoveredSkills = Array.from(found.values())
-      .sort((left, right) => left.name.localeCompare(right.name))
-      .map((skill) => ({
-        name: skill.name,
-        localPath: skill.localPath || skill.path,
-        description: skill.description,
-        source: skill.source,
-        gitSourceUrl: trimmedUrl,
-      }));
+      try {
+        this.runGit(["clone", trimmedUrl, tempClonePath], tempImportParent);
+      } catch (error) {
+        throw new SkillRepositoryImporterError(`Failed to clone ${trimmedUrl}: ${error.message}`);
+      }
 
-    if (!discoveredSkills.length) {
-      return {
-        status: "no-skills-found",
-        repoUrl: trimmedUrl,
-        destination,
+      const { gitTrackedRef, gitImportedRevision } = this.readGitProvenance(tempClonePath);
+      const discoveredSkills = this.discoveredSkillsForImport({
+        tempImportParent,
+        tempClonePath,
         libraryRoot,
-        repoName,
-        cleanupOffered: true,
-      };
-    }
+        repoUrl: trimmedUrl,
+        gitTrackedRef,
+        gitImportedRevision,
+      });
 
-    const existingSkills = this.db.listSkills(libraryId);
-    const existingSkillsByName = new Map(existingSkills.map((skill) => [skill.name, skill]));
-    for (const skill of discoveredSkills) {
-      const existing = existingSkillsByName.get(skill.name);
-      if (existing) {
-        return {
-          status: "duplicate-name",
+      if (!discoveredSkills.length) {
+        result = {
+          status: "no-skills-found",
           repoUrl: trimmedUrl,
           destination,
           libraryRoot,
           repoName,
-          duplicateName: skill.name,
-          existingSkillId: existing.id,
-          existingSkillLocalPath: existing.localPath,
-          newSkillLocalPath: skill.localPath,
         };
+      }
+
+      if (!result) {
+        const existingSkills = this.db.listSkills(libraryId);
+        const existingSkillsByName = new Map(existingSkills.map((skill) => [skill.name, skill]));
+        const duplicateResult = this.duplicateNameResult({
+          discoveredSkills,
+          existingSkillsByName,
+          repoUrl: trimmedUrl,
+          destination,
+          libraryRoot,
+          repoName,
+        });
+        if (duplicateResult) {
+          result = duplicateResult;
+        }
+      }
+
+      if (!result) {
+        this.copyRepoTreeExcludingGit(tempClonePath, destination);
+        destinationWritten = true;
+        this.db.upsertSkills(libraryId, discoveredSkills);
+        result = {
+          status: "cataloged",
+          repoUrl: trimmedUrl,
+          destination,
+          libraryRoot,
+          repoName,
+          importedSkillNames: discoveredSkills.map((skill) => skill.name),
+        };
+      }
+    } catch (error) {
+      failure = error;
+    }
+
+    if (failure && destinationWritten) {
+      try {
+        this.cleanupClonedDestination({ libraryRoot, destination });
+      } catch (cleanupError) {
+        if (failure) {
+          failure = new SkillRepositoryImporterError(
+            `${failure.message} Cleanup also failed for ${destination}: ${cleanupError.message}`
+          );
+        } else {
+          failure = cleanupError;
+        }
       }
     }
 
-    this.db.upsertSkills(libraryId, discoveredSkills);
-    return {
-      status: "cataloged",
-      repoUrl: trimmedUrl,
-      destination,
-      libraryRoot,
-      repoName,
-      importedSkillNames: discoveredSkills.map((skill) => skill.name),
-    };
+    try {
+      this.cleanupTempImportParent(tempImportParent);
+    } catch (cleanupError) {
+      if (failure) {
+        throw new SkillRepositoryImporterError(
+          `${failure.message} Temp cleanup also failed for ${tempImportParent}: ${cleanupError.message}`
+        );
+      }
+      throw new SkillRepositoryImporterError(
+        `Temp cleanup failed for ${tempImportParent}: ${cleanupError.message}`
+      );
+    }
+
+    if (failure) {
+      throw failure;
+    }
+    return result;
   }
 }
 

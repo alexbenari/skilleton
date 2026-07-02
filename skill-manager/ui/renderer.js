@@ -1319,25 +1319,14 @@
     closeCloneModal();
     const result = await runAction(
       () => api.cloneSkillsRepo(repoUrl, currentProject() || null),
-      `Cloning ${repoUrl}...`
+      `Importing ${repoUrl}...`
     );
     if (result?.result?.status === "duplicate-name") {
       const details = result.result;
       setMessage(
         "error",
-        `Duplicate skill "${details.duplicateName}". Existing: ${details.existingSkillLocalPath}. Cloned copy: ${details.newSkillLocalPath}.`
+        `Duplicate skill "${details.duplicateName}". Existing: ${details.existingSkillLocalPath}. Imported destination: ${details.newSkillLocalPath}.`
       );
-    }
-    if (result?.result?.status === "no-skills-found") {
-      const cleanup = window.confirm(
-        `No skills were found in ${result.result.destination}.\n\nDelete the cloned repo folder now?`
-      );
-      if (cleanup) {
-        await runAction(
-          () => api.cleanupImportedRepository(result.result.destination, currentProject() || null),
-          `Deleting ${result.result.destination}...`
-        );
-      }
     }
     cloneUrlInput.value = "";
   }

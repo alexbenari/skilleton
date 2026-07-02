@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "testing-plugin",
+  "version": "3.14.0",
+  "description": "Test execution, TDD workflow, testing strategies, and quality analysis",
+  "author": {
+    "name": "Lauri Gates"
+  },
+  "repository": "https://github.com/laurigates/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "testing",
+    "tdd",
+    "test-driven-development",
+    "pytest",
+    "vitest",
+    "coverage",
+    "test-runner",
+    "playwright",
+    "playwright-cli",
+    "browser-automation",
+    "odiff",
+    "image-diff",
+    "visual-regression"
+  ]
+}

@@ -1,0 +1,44 @@
+# Changelog
+
+## [1.2.2](https://github.com/laurigates/claude-plugins/compare/codebase-attributes-plugin-v1.2.1...codebase-attributes-plugin-v1.2.2) (2026-05-14)
+
+
+### Code Refactoring
+
+* **codebase-attributes-plugin:** further tighten description under 180 chars ([3f5b497](https://github.com/laurigates/claude-plugins/commit/3f5b49748171de01f407f6d8d84645281f3771dd))
+* **codebase-attributes-plugin:** tighten skill descriptions for listing budget ([118d267](https://github.com/laurigates/claude-plugins/commit/118d2674c0bc486e718919049c137ea181122ff9))
+
+## [1.2.1](https://github.com/laurigates/claude-plugins/compare/codebase-attributes-plugin-v1.2.0...codebase-attributes-plugin-v1.2.1) (2026-05-09)
+
+
+### Documentation
+
+* trim oversized SKILL.md descriptions across 41 plugins ([#1265](https://github.com/laurigates/claude-plugins/issues/1265)) ([e13d9f4](https://github.com/laurigates/claude-plugins/commit/e13d9f46a010559082c6d5eb61b0cb891843bf97))
+
+## [1.2.0](https://github.com/laurigates/claude-plugins/compare/codebase-attributes-plugin-v1.1.2...codebase-attributes-plugin-v1.2.0) (2026-04-19)
+
+
+### Features
+
+* make skills discoverable by Claude's auto-invocation ([#1090](https://github.com/laurigates/claude-plugins/issues/1090)) ([cded1da](https://github.com/laurigates/claude-plugins/commit/cded1da1ebaf350cba1285b58ecadbbaa0eb01f6))
+
+## [1.1.2](https://github.com/laurigates/claude-plugins/compare/codebase-attributes-plugin-v1.1.1...codebase-attributes-plugin-v1.1.2) (2026-04-15)
+
+
+### Documentation
+
+* **plugins:** add flow diagrams for router and pipeline plugins ([#1034](https://github.com/laurigates/claude-plugins/issues/1034)) ([a5e0e08](https://github.com/laurigates/claude-plugins/commit/a5e0e087495f0e835c3ad7e5dcf5bf7f4e61ad02))
+
+## [1.1.1](https://github.com/laurigates/claude-plugins/compare/codebase-attributes-plugin-v1.1.0...codebase-attributes-plugin-v1.1.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* **blueprint-plugin:** remove model field from skills and fix invocation syntax ([#1007](https://github.com/laurigates/claude-plugins/issues/1007)) ([42e1e5b](https://github.com/laurigates/claude-plugins/commit/42e1e5b6c73d43e5de4b27cdee16e316de44d4c0))
+
+## [1.1.0](https://github.com/laurigates/claude-plugins/compare/codebase-attributes-plugin-v1.0.0...codebase-attributes-plugin-v1.1.0) (2026-03-15)
+
+
+### Features
+
+* structured codebase attributes with severity-based agent routing ([#946](https://github.com/laurigates/claude-plugins/issues/946)) ([87f03c3](https://github.com/laurigates/claude-plugins/commit/87f03c324c774ba3b4ab8189b0d51fd33cc5e651))

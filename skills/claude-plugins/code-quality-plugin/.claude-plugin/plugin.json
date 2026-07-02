@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "code-quality-plugin",
+  "version": "1.14.7",
+  "description": "Code review, refactoring, linting, anti-pattern detection, and static analysis",
+  "author": {
+    "name": "Lauri Gates"
+  },
+  "repository": "https://github.com/laurigates/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "code-review",
+    "refactoring",
+    "linting",
+    "analysis",
+    "anti-patterns",
+    "ast-grep",
+    "security",
+    "documentation",
+    "adr",
+    "prd",
+    "prp",
+    "quality-check",
+    "dry-consolidation",
+    "duplication",
+    "silent-degradation",
+    "preconditions",
+    "error-handling",
+    "error-swallowing",
+    "dead-code",
+    "dependency-audit",
+    "test-quality",
+    "complexity",
+    "supply-chain"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "configure-plugin",
+  "version": "1.25.0",
+  "description": "Project infrastructure standards - comprehensive project configuration for pre-commit, CI/CD, Docker, testing, linting, formatting, and more",
+  "author": {
+    "name": "Lauri Gates"
+  },
+  "repository": "https://github.com/laurigates/claude-plugins",
+  "license": "MIT",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/configure-drift-probe.sh",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
+  },
+  "keywords": [
+    "infrastructure",
+    "standards",
+    "configuration",
+    "pre-commit",
+    "ci-cd",
+    "docker",
+    "testing",
+    "linting",
+    "formatting",
+    "security",
+    "permissions",
+    "wildcards",
+    "config-sync",
+    "claude-plugins",
+    "marketplace",
+    "web-session",
+    "session-start",
+    "remote",
+    "onboarding",
+    "repo-setup",
+    "stack-aware",
+    "driver"
+  ]
+}

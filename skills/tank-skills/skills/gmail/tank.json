@@ -1,0 +1,21 @@
+{
+  "name": "@tank/gmail",
+  "version": "1.2.0",
+  "description": "Send, read, search, label, and manage email through the Gmail API. Covers composing (plain text, HTML, attachments), thread-aware replies, Gmail search query syntax (from:, to:, has:attachment, after:), label management, filter automation, and draft workflows. Sources: Gmail API official docs. Triggers: gmail, email, send email, read email, search email, attachment, label, filter, thread, draft, Gmail API, compose, reply, forward, inbox, MIME.",
+  "permissions": {
+    "network": {
+      "outbound": [
+        "*.googleapis.com",
+        "accounts.google.com",
+        "oauth2.googleapis.com"
+      ]
+    },
+    "filesystem": {
+      "read": [
+        "./**"
+      ]
+    },
+    "subprocess": false
+  },
+  "repository": "https://github.com/tankpkg/skills"
+}

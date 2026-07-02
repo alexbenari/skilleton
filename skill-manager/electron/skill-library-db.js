@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const DEFAULT_SCHEMA_VERSION = 1;
+const DEFAULT_SCHEMA_VERSION = 2;
 
 class SkillLibraryDBError extends Error {}
 
@@ -18,6 +18,25 @@ function createDBAdapter({
 
   const db = new sqliteDriver.DatabaseSync(databasePath);
   db.exec("PRAGMA foreign_keys = ON");
+
+  function tableHasColumn(tableName, columnName) {
+    const rows = db.prepare(`PRAGMA table_info(${tableName})`).all();
+    return rows.some((row) => row.name === columnName);
+  }
+
+  function ensureSkillsColumn(columnName, columnType) {
+    if (tableHasColumn("skills", columnName)) {
+      return;
+    }
+    db.exec(`ALTER TABLE skills ADD COLUMN ${columnName} ${columnType}`);
+  }
+
+  function migrateSchemaVersion1To2() {
+    ensureSkillsColumn("git_tracked_ref", "TEXT");
+    ensureSkillsColumn("git_imported_revision", "TEXT");
+    db.prepare("UPDATE schema_meta SET value = ? WHERE key = 'schema_version'")
+      .run(String(DEFAULT_SCHEMA_VERSION));
+  }
 
   function initialize() {
     db.exec(`
@@ -41,6 +60,8 @@ function createDBAdapter({
         description TEXT NOT NULL,
         source TEXT,
         git_source_url TEXT,
+        git_tracked_ref TEXT,
+        git_imported_revision TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         UNIQUE(library_id, name)
@@ -65,6 +86,11 @@ function createDBAdapter({
     if (!row) {
       db.prepare("INSERT INTO schema_meta(key, value) VALUES ('schema_version', ?)")
         .run(String(DEFAULT_SCHEMA_VERSION));
+      return;
+    }
+
+    if (row.value === "1") {
+      migrateSchemaVersion1To2();
       return;
     }
 
@@ -116,6 +142,8 @@ function createDBAdapter({
       description: row.description,
       source: row.source,
       gitSourceUrl: row.git_source_url,
+      gitTrackedRef: row.git_tracked_ref,
+      gitImportedRevision: row.git_imported_revision,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       tags: tagsBySkillId.get(row.id) || [],
@@ -170,6 +198,8 @@ function createDBAdapter({
       description: skill.description,
       source: skill.source || null,
       gitSourceUrl: skill.gitSourceUrl || null,
+      gitTrackedRef: skill.gitTrackedRef || null,
+      gitImportedRevision: skill.gitImportedRevision || null,
     };
   }
 
@@ -264,6 +294,8 @@ function createDBAdapter({
           description,
           source,
           git_source_url,
+          git_tracked_ref,
+          git_imported_revision,
           created_at,
           updated_at
         FROM skills
@@ -286,15 +318,22 @@ function createDBAdapter({
         description,
         source,
         git_source_url,
+        git_tracked_ref,
+        git_imported_revision,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(library_id, name) DO UPDATE SET
         local_path = excluded.local_path,
         description = excluded.description,
         source = excluded.source,
-        git_source_url = excluded.git_source_url,
+        git_source_url = COALESCE(excluded.git_source_url, skills.git_source_url),
+        git_tracked_ref = COALESCE(excluded.git_tracked_ref, skills.git_tracked_ref),
+        git_imported_revision = COALESCE(
+          excluded.git_imported_revision,
+          skills.git_imported_revision
+        ),
         updated_at = excluded.updated_at
     `);
 
@@ -307,6 +346,8 @@ function createDBAdapter({
         skill.description,
         skill.source,
         skill.gitSourceUrl,
+        skill.gitTrackedRef,
+        skill.gitImportedRevision,
         updateTime,
         updateTime
       );

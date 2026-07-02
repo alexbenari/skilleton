@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "documentation-plugin",
+  "version": "1.8.4",
+  "description": "Documentation generation - API docs, README, knowledge graphs, LaTeX PDF conversion",
+  "keywords": [
+    "documentation",
+    "docs",
+    "api-docs",
+    "readme",
+    "knowledge-graph",
+    "latex",
+    "pdf",
+    "tikz"
+  ]
+}

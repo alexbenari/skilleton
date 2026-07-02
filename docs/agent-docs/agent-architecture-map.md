@@ -1,6 +1,6 @@
 # Agent Architecture Map
 
-Last updated: 2026-06-30
+Last updated: 2026-07-01
 Status: canonical agent entrypoint
 
 ## Purpose
@@ -37,19 +37,21 @@ Start here for current production behavior:
   `SKILL.md` parsing/collapse rules.
 - `skill-manager/electron/skill-installer.js` owns project/global install
   behavior for already-cataloged skills.
-- `skill-manager/electron/skill-repository-importer.js` owns Add Skills clone
-  and narrow import behavior for a newly cloned repo.
+- `skill-manager/electron/skill-repository-importer.js` owns Add Skills
+  temp-clone, plain-file copy import, Git provenance capture, and narrow
+  catalog update behavior for one imported repo.
 - `skill-manager/electron/app-config.js` stores app preference state,
   currently `lastSelectedLibraryId`.
 - `skill-manager/ui/renderer.js` is the plain-JS presentation layer and local UI
   state. It now owns the library picker flow, selected-library actions, and the
-  Add Skills cleanup prompt when a cloned repo has no catalogable skills.
+  Add Skills repo import modal and result messaging.
 - `skill-manager/scripts/migrate-json-tags-to-sqlite.js` is the manual one-time
   migration script that reads legacy `.skill-library-manager.json` tag data and
   writes it into SQLite for already-cataloged skills by name.
-- `skill-manager/tests/` is the primary verification entrypoint. The tests are
-  split by boundary: orchestration, discovery, installer, repository importer,
-  and DB adapter integration.
+- `skill-manager/tests/unit/` holds single-boundary tests such as orchestration
+  or domain-module behavior.
+- `skill-manager/tests/integration/` holds real filesystem, real Git, and real
+  SQLite collaboration tests.
 
 ### Current metadata source of truth
 
@@ -67,10 +69,12 @@ Start here for current production behavior:
 - One skill library is loaded at a time.
 - If more than one library exists and no persisted selection is valid, the UI
   must require an explicit library choice before skill operations proceed.
-- Add Skills must update only the cloned repo's discovered skills; it must not
+- Add Skills must update only the imported repo's discovered skills; it must not
   force a full library refresh.
-- If Add Skills clones a repo with no `SKILL.md` entries, the app should report
-  that clearly and offer cleanup of the cloned folder.
+- Add Skills uses a temp clone under the OS temp directory, then copies the
+  repo into the active library without `.git`.
+- If Add Skills finds no `SKILL.md` entries, the app should report that clearly
+  and auto-delete the temp clone.
 - Duplicate skill names during Add Skills are fatal for that import and should
   report both the existing and incoming skill locations to the user.
 - The legacy Python CLI has been removed. Electron is the only supported app
@@ -96,18 +100,16 @@ When working in `skill-manager/`:
    `scripts/migrate-json-tags-to-sqlite.js`.
 9. For UI state and startup/picker flow, inspect `electron/main.js`,
    `electron/preload.js`, and `ui/renderer.js`.
-10. Use `skill-manager/tests/` as the primary verification entrypoint.
+10. Use `skill-manager/tests/unit/` and `skill-manager/tests/integration/` as
+   the primary automated verification entrypoints.
 
 ## Verification commands
 
 Backend baseline:
 
 - `cd skill-manager`
-- `node --test tests/skill-library.test.js`
-- `node --test tests/skill-library-db.integration.test.js`
-- `node --test tests/skill-discovery.test.js`
-- `node --test tests/skill-installer.test.js`
-- `node --test tests/skill-repository-importer.test.js`
+- `node --test tests/unit/*.test.js`
+- `node --test tests/integration/*.test.js`
 - `node --check ui/renderer.js`
 - `node --check electron/main.js`
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "TypeScript Coding"
+  short_description: "TypeScript coding guidance for agents"
+  default_prompt: "Use $typescript-coding to implement or review TypeScript code."

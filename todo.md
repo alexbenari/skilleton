@@ -1,9 +1,17 @@
-- import from D:\OneDrive\dev\skills-main, including the json file
-- verify if coding and testing skills are really used during plan execution
+- skill eval
+    - cr over the clip-sandbox codebase
+    - eval spec
+- skill comparison
+- typescript coding skill
+    - test vs just with general coding skills -> generalize this testing to testing new skills
 - inside skills, perhaps add a folder for yet untested skills?
-- implement skill addition flow and skill update floww properly
+- implement skill update flow properly
 - update with new skills from mail
-- In other/agents.md, there is a planning flow section and the reference to plans.md inside it which seem to overlap the spec+plan flow in superpowers. Check whether the two can be folded together and setup can be simplified, removing plans.md and possibly the  planning flow section as well.
+- Is plans.md needed? : In other/agents.md, there is a planning flow section and the reference to plans.md inside it which seem to overlap the spec+plan flow in superpowers. Check whether the two can be folded together and setup can be simplified, removing plans.md and possibly the planning flow section as well.
+- Flow for setting up a new project: 
+    - agents.md, plan.md and anything else non-skill (`other` folder)
+    - skill packs? E.g. code-quality pack, per language pack
+    - make into a cli
 - Add llm-code related skill or agents.md section based on future additions.md
 - Add guidance about testing with mocks
 - Add the principle of designing logic to fail fast

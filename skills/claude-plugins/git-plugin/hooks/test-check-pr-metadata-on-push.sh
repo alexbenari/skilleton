@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+# Regression tests for check-pr-metadata-on-push.sh
+#
+# Run: bash git-plugin/hooks/test-check-pr-metadata-on-push.sh
+# Exit 0 = all tests pass, Exit 1 = failures
+#
+# Note: Tests that require gh CLI or an actual PR are guarded
+# and skipped when gh is unavailable. Core guard-clause tests
+# always run since they exit before reaching gh.
+set -euo pipefail
+
+HOOK="$(dirname "$0")/check-pr-metadata-on-push.sh"
+PASS=0
+FAIL=0
+SKIP=0
+
+# Create a temporary git repo
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+git -C "$TMPDIR" init -q
+git -C "$TMPDIR" config commit.gpgsign false
+git -C "$TMPDIR" config user.email "test@test.com"
+git -C "$TMPDIR" config user.name "Test"
+git -C "$TMPDIR" commit --allow-empty -m "initial" -q
+git -C "$TMPDIR" checkout -b main -q 2>/dev/null || true
+git -C "$TMPDIR" checkout -b feature -q
+git -C "$TMPDIR" commit --allow-empty -m "feat: add feature
+
+Closes #42" -q
+
+# Point origin/HEAD at main so merge-base works
+git -C "$TMPDIR" remote add origin "$TMPDIR" 2>/dev/null || true
+git -C "$TMPDIR" symbolic-ref refs/remotes/origin/HEAD refs/heads/main
+
+assert_exit() {
+    local desc="$1" expected="$2"
+    local json="$3"
+    local exit_code=0
+    printf '%s' "$json" | bash "$HOOK" >/dev/null 2>&1 || exit_code=$?
+    if [ "$exit_code" -eq "$expected" ]; then
+        printf "  PASS: %s\n" "$desc"
+        PASS=$((PASS + 1))
+    else
+        printf "  FAIL: %s (expected exit %d, got %d)\n" "$desc" "$expected" "$exit_code"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+skip_test() {
+    local desc="$1" reason="$2"
+    printf "  SKIP: %s (%s)\n" "$desc" "$reason"
+    SKIP=$((SKIP + 1))
+}
+
+make_json() {
+    local cmd="$1"
+    local cwd="${2:-$TMPDIR}"
+    jq -n --arg cmd "$cmd" --arg cwd "$cwd" \
+        '{"tool_name":"Bash","tool_input":{"command":$cmd},"cwd":$cwd}'
+}
+
+echo "=== check-pr-metadata-on-push hook tests ==="
+
+# ── Guard clauses: non-push commands pass through ──────────────────────────
+echo ""
+echo "guard clause (non-push commands pass through):"
+
+assert_exit \
+    "non-git command is allowed" 0 \
+    "$(make_json "ls -la")"
+
+assert_exit \
+    "git status is allowed" 0 \
+    "$(make_json "git status")"
+
+assert_exit \
+    "git commit is allowed" 0 \
+    "$(make_json "git commit -m 'feat: something'")"
+
+assert_exit \
+    "git pull is allowed" 0 \
+    "$(make_json "git pull origin main")"
+
+assert_exit \
+    "git fetch is allowed" 0 \
+    "$(make_json "git fetch origin")"
+
+assert_exit \
+    "gh pr create is allowed (not a push)" 0 \
+    "$(make_json "gh pr create --title 'feat: test'")"
+
+# ── Guard clause: git push detected but no CWD ────────────────────────────
+echo ""
+echo "guard clause (push without valid cwd):"
+
+assert_exit \
+    "git push with empty cwd passes through" 0 \
+    '{"tool_name":"Bash","tool_input":{"command":"git push origin main"},"cwd":""}'
+
+assert_exit \
+    "git push with non-repo cwd passes through" 0 \
+    "$(make_json "git push origin main" "/tmp")"
+
+# ── Guard clause: git push patterns are detected ──────────────────────────
+# These test that the regex correctly identifies push commands.
+# Since there's no real PR, gh pr view will fail and the hook exits 0.
+echo ""
+echo "push pattern detection (no PR exists, so these allow through):"
+
+assert_exit \
+    "simple git push is detected (no PR, allows)" 0 \
+    "$(make_json "git push")"
+
+assert_exit \
+    "git push origin branch is detected (no PR, allows)" 0 \
+    "$(make_json "git push origin feature")"
+
+assert_exit \
+    "git push -u origin branch is detected (no PR, allows)" 0 \
+    "$(make_json "git push -u origin feature")"
+
+assert_exit \
+    "git push with --force flag is detected (no PR, allows)" 0 \
+    "$(make_json "git push --force origin feature")"
+
+assert_exit \
+    "chained command with git push is detected (no PR, allows)" 0 \
+    "$(make_json "git add . && git push origin feature")"
+
+# ── Guard clause: empty/missing input ─────────────────────────────────────
+echo ""
+echo "guard clause (empty/missing input):"
+
+assert_exit \
+    "empty command passes through" 0 \
+    '{"tool_name":"Bash","tool_input":{"command":""},"cwd":"/tmp"}'
+
+assert_exit \
+    "missing command field passes through" 0 \
+    '{"tool_name":"Bash","tool_input":{},"cwd":"/tmp"}'
+
+# ── Retry-aware bypass: PR updated after HEAD commit ──────────────────────
+# Regression test for issue #1041: the hook must NOT block when the PR
+# metadata was edited after the latest local commit, because the agent
+# (or human) has demonstrably already reconciled metadata for HEAD.
+echo ""
+echo "retry-aware bypass (PR updatedAt vs HEAD commit time):"
+
+# Mock gh CLI: writes canned PR JSON from $MOCK_PR_JSON
+MOCK_BIN=$(mktemp -d)
+cat >"$MOCK_BIN/gh" <<'MOCK_EOF'
+#!/usr/bin/env bash
+# Mock: only handles `gh pr view ...` for these tests.
+if [ "${1:-}" = "pr" ] && [ "${2:-}" = "view" ]; then
+    if [ -n "${MOCK_PR_JSON:-}" ]; then
+        printf '%s' "$MOCK_PR_JSON"
+    fi
+    exit 0
+fi
+exit 0
+MOCK_EOF
+chmod +x "$MOCK_BIN/gh"
+
+# Cross-platform ISO 8601 timestamp helpers (BSD vs GNU date)
+iso_offset() {
+    local offset_sec="$1"
+    if date -u -v"${offset_sec}S" "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null; then
+        return 0
+    fi
+    date -u -d "${offset_sec} seconds" "+%Y-%m-%dT%H:%M:%SZ"
+}
+
+PR_FUTURE=$(iso_offset "+3600")  # 1h ahead of HEAD commit
+PR_PAST=$(iso_offset   "-3600")  # 1h behind HEAD commit
+
+# Make `git push origin feature` resolve to a PR via the mock
+PUSH_JSON=$(make_json "git push origin feature")
+
+# Test: PR updated AFTER HEAD commit → hook exits 0 (skip block)
+MOCK_PR_JSON=$(jq -n --arg t "$PR_FUTURE" \
+    '{number:42,title:"feat: x",body:"body",url:"https://example/42",updatedAt:$t}')
+PATH="$MOCK_BIN:$PATH" MOCK_PR_JSON="$MOCK_PR_JSON" \
+    assert_exit "PR updated after HEAD commit allows push (retry-aware)" 0 "$PUSH_JSON"
+
+# Test: PR updated BEFORE HEAD commit → hook still blocks (exit 2)
+MOCK_PR_JSON=$(jq -n --arg t "$PR_PAST" \
+    '{number:42,title:"feat: x",body:"body",url:"https://example/42",updatedAt:$t}')
+PATH="$MOCK_BIN:$PATH" MOCK_PR_JSON="$MOCK_PR_JSON" \
+    assert_exit "PR not updated since HEAD commit still blocks" 2 "$PUSH_JSON"
+
+# Test: missing updatedAt → fall back to legacy block behaviour
+MOCK_PR_JSON='{"number":42,"title":"feat: x","body":"body","url":"https://example/42"}'
+PATH="$MOCK_BIN:$PATH" MOCK_PR_JSON="$MOCK_PR_JSON" \
+    assert_exit "missing updatedAt falls back to blocking" 2 "$PUSH_JSON"
+
+# ── Author-date bypass after rebase (issue #1400) ─────────────────────────
+# Regression test: `git rebase` updates committer time to "now" but
+# preserves author time. The bypass must use author time so it survives a
+# rebase that adds no new content. Without this, a post-rebase push
+# requires a content-changing `gh pr edit` to escape the block, which
+# `gh pr edit --body-file` no-ops when the body is unchanged (issue #1400).
+echo ""
+echo "author-date bypass (rebase preserves author date):"
+
+git -C "$TMPDIR" checkout -b rebased -q
+
+# Simulate a rebased commit: author date = when the agent originally wrote
+# the work (2h ago); committer date = when the rebase ran (now, default).
+PAST_AUTHOR_DATE=$(iso_offset "-7200")
+GIT_AUTHOR_DATE="$PAST_AUTHOR_DATE" git -C "$TMPDIR" commit --allow-empty \
+    -m "feat: rebased commit" -q
+
+REBASED_PUSH_JSON=$(make_json "git push origin rebased")
+
+# PR was edited 1h ago: AFTER the agent wrote the commit, BEFORE rebase ran.
+# With author-date semantics, bypass fires. With committer-date semantics,
+# bypass fails (committer time is "now", later than PR.updatedAt).
+PR_BETWEEN=$(iso_offset "-3600")
+MOCK_PR_JSON=$(jq -n --arg t "$PR_BETWEEN" \
+    '{number:42,title:"feat: rebased",body:"body",url:"https://example/42",updatedAt:$t}')
+PATH="$MOCK_BIN:$PATH" MOCK_PR_JSON="$MOCK_PR_JSON" \
+    assert_exit "PR updated after author-date allows push post-rebase (#1400)" 0 "$REBASED_PUSH_JSON"
+
+# Counter-test: PR genuinely never reviewed (updatedAt before author date)
+# still blocks — so the bypass doesn't fire indiscriminately.
+PR_BEFORE_AUTHOR=$(iso_offset "-10800")  # 3h ago, before author wrote
+MOCK_PR_JSON=$(jq -n --arg t "$PR_BEFORE_AUTHOR" \
+    '{number:42,title:"feat: rebased",body:"body",url:"https://example/42",updatedAt:$t}')
+PATH="$MOCK_BIN:$PATH" MOCK_PR_JSON="$MOCK_PR_JSON" \
+    assert_exit "PR not updated since author-date still blocks post-rebase" 2 "$REBASED_PUSH_JSON"
+
+# Return HEAD to feature for any subsequent tests
+git -C "$TMPDIR" checkout feature -q
+
+# ── Cross-branch push uses pushed branch's ref (issue #1419) ──────────────
+# Regression test: when `git push origin <branch>` is run from a checkout
+# whose HEAD is on a different branch (e.g. orchestrator on main pushing
+# a feature branch in a worktree), the hook must read commits and the
+# bypass author time from the PUSHED branch, not the running shell's HEAD.
+#
+# Without the fix, the hook reads HEAD (the current branch) — showing
+# wrong commits in the block message and reading the wrong author time,
+# which traps the agent in a re-block loop when the current branch happens
+# to have more recent author time than the pushed branch.
+echo ""
+echo "cross-branch push reads pushed branch ref (#1419):"
+
+# Build a fresh branch "older-target" with an old author date.
+# Then put HEAD on a separate "newer-current" branch with a recent author
+# date. From newer-current, push older-target. PR.updatedAt is set
+# between the two author dates: AFTER older-target's commit, BEFORE
+# newer-current's commit. With HEAD-based logic this fails to bypass
+# (uses newer-current's recent author date). With PUSH_REF-based logic
+# it bypasses correctly (uses older-target's older author date).
+git -C "$TMPDIR" checkout main -q
+git -C "$TMPDIR" checkout -b older-target -q
+OLDER_AUTHOR_DATE=$(iso_offset "-10800")  # 3h ago
+GIT_AUTHOR_DATE="$OLDER_AUTHOR_DATE" git -C "$TMPDIR" commit --allow-empty \
+    -m "feat: target branch work" -q
+
+git -C "$TMPDIR" checkout main -q
+git -C "$TMPDIR" checkout -b newer-current -q
+NEWER_AUTHOR_DATE=$(iso_offset "-60")  # 1m ago
+GIT_AUTHOR_DATE="$NEWER_AUTHOR_DATE" git -C "$TMPDIR" commit --allow-empty \
+    -m "feat: unrelated current-branch work" -q
+
+# PR last updated 1h ago — between the two author dates.
+PR_BETWEEN_BRANCHES=$(iso_offset "-3600")
+CROSS_PUSH_JSON=$(make_json "git push origin older-target")
+
+# Bypass MUST fire: pushed branch's author time (3h ago) < PR.updatedAt (1h ago).
+MOCK_PR_JSON=$(jq -n --arg t "$PR_BETWEEN_BRANCHES" \
+    '{number:42,title:"feat: target",body:"body",url:"https://example/42",updatedAt:$t}')
+PATH="$MOCK_BIN:$PATH" MOCK_PR_JSON="$MOCK_PR_JSON" \
+    assert_exit "cross-branch push uses pushed branch's author date for bypass (#1419)" 0 "$CROSS_PUSH_JSON"
+
+# Counter-test: PR genuinely not updated since pushed branch's commit
+# (PR.updatedAt 4h ago, target branch authored 3h ago) → still blocks.
+PR_BEFORE_TARGET=$(iso_offset "-14400")  # 4h ago
+MOCK_PR_JSON=$(jq -n --arg t "$PR_BEFORE_TARGET" \
+    '{number:42,title:"feat: target",body:"body",url:"https://example/42",updatedAt:$t}')
+PATH="$MOCK_BIN:$PATH" MOCK_PR_JSON="$MOCK_PR_JSON" \
+    assert_exit "cross-branch push still blocks when PR is older than pushed branch" 2 "$CROSS_PUSH_JSON"
+
+# First-push case: `git push -u origin brand-new-branch` when the local
+# ref doesn't yet exist must fall back to HEAD without erroring.
+NEW_PUSH_JSON=$(make_json "git push -u origin brand-new-branch")
+MOCK_PR_JSON='{"number":42,"title":"feat: new","body":"body","url":"https://example/42"}'
+PATH="$MOCK_BIN:$PATH" MOCK_PR_JSON="$MOCK_PR_JSON" \
+    assert_exit "missing local ref falls back to HEAD without error" 2 "$NEW_PUSH_JSON"
+
+git -C "$TMPDIR" checkout feature -q
+
+rm -rf "$MOCK_BIN"
+
+# ── Summary ────────────────────────────────────────────────────────────────
+echo ""
+echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"
+[ "$FAIL" -eq 0 ] && exit 0 || exit 1

@@ -1,0 +1,225 @@
+{
+  "lastCheckedVersion": "2.1.138",
+  "lastCheckedDate": "2026-05-11",
+  "changelogUrl": "https://raw.githubusercontent.com/anthropics/claude-code/refs/heads/main/CHANGELOG.md",
+  "reviewedChanges": [
+    {
+      "version": "2.1.138",
+      "date": "2026-05-11",
+      "relevantChanges": [
+        "New PermissionDenied hook event (2.1.89)",
+        "New TaskCreated hook event (2.1.89)",
+        "New defer decision for PreToolUse via -p --resume (2.1.89)",
+        "PostToolUse updatedToolOutput for ALL tools (2.1.121)",
+        "Hooks receive effort.level in JSON input (2.1.133)",
+        "Skills reference CLAUDE_EFFORT (2.1.120)",
+        "PreCompact can block compaction (2.1.105)",
+        "duration_ms in PostToolUse inputs (2.1.119)",
+        "UserPromptSubmit can set sessionTitle (2.1.94)",
+        "permissions.deny overrides ask decision (2.1.101)",
+        "Agent frontmatter hooks fire via --agent (2.1.116)",
+        "Agent frontmatter mcpServers loaded via --agent (2.1.117)",
+        "Subagents discover skills via Skill tool (2.1.133)",
+        "worktree.baseRef controls EnterWorktree base (2.1.133)",
+        "EnterWorktree gained path parameter (2.1.105)",
+        "Plugins ship executables under bin/ (2.1.91)",
+        "Plugin manifest experimental wrapper (2.1.129)",
+        "autoMode.hard_deny added (2.1.136)",
+        "CLAUDE_CODE_SESSION_ID in Bash subprocess (2.1.132)",
+        "sandbox.network.deniedDomains added (2.1.113)",
+        "Fixed PermissionRequest updatedInput (2.1.110)",
+        "Fixed plugin hooks on cache cleanup (2.1.136)",
+        "BREAKING: skills entry fix (2.1.136)"
+      ],
+      "actionsRequired": [
+        "Updated hooks-reference.md",
+        "Updated skill-development.md",
+        "Updated agent-development.md",
+        "Updated plugin-structure.md",
+        "Updated agentic-permissions.md",
+        "Updated sandbox-guidance.md"
+      ]
+    },
+    {
+      "version": "2.1.76",
+      "date": "2026-03-17",
+      "relevantChanges": [
+        "New Elicitation hook event: intercepts MCP server input requests before showing dialog",
+        "New ElicitationResult hook event: fires after user responds; can override result",
+        "New PostCompact hook event: fires after compaction completes (companion to PreCompact)",
+        "New -n/--name CLI flag to set session display name at startup",
+        "New worktree.sparsePaths setting for sparse-checkout with --worktree",
+        "New /effort slash command to set model effort level",
+        "New feedbackSurveyRate enterprise setting for session quality survey sampling",
+        "Fixed deferred tools (via ToolSearch) losing input schemas after compaction",
+        "Fixed slash commands showing 'Unknown skill'",
+        "Fixed plan mode re-asking for approval after acceptance",
+        "Fixed Bash(cmd:*) permission rules not matching with quoted # arguments",
+        "Fixed SessionEnd hooks still using 1.5s hard limit even when hook.timeout configured (also fixed in 2.1.74)"
+      ],
+      "actionsRequired": [
+        "Update .claude/rules/hooks-reference.md: add Elicitation, ElicitationResult, PostCompact events with schemas",
+        "Update .claude/rules/prompt-agent-hooks.md: add Elicitation/ElicitationResult to supported events table",
+        "Update .claude/rules/hooks-reference.md: version header to 2.1.76+"
+      ]
+    },
+    {
+      "version": "2.1.75",
+      "date": "2026-03-13",
+      "relevantChanges": [
+        "1M context window for Opus 4.6 by default for Max, Team, Enterprise plans",
+        "New /color command for per-session prompt bar color",
+        "New /rename command for session name display",
+        "Last-modified timestamps added to memory files",
+        "Hook source display (settings/plugin/skill) in permission prompts",
+        "Async hook completion messages suppressed by default (use --verbose to see)",
+        "BREAKING: Removed deprecated Windows managed settings fallback at C:\\ProgramData\\ClaudeCode\\managed-settings.json"
+      ],
+      "actionsRequired": [
+        "Note async hook suppression behavior change in hooks-reference.md"
+      ]
+    },
+    {
+      "version": "2.1.74",
+      "date": "2026-03-12",
+      "relevantChanges": [
+        "New autoMemoryDirectory setting to configure custom directory for auto-memory storage",
+        "Actionable suggestions added to /context command",
+        "Fixed managed policy 'ask' rules being bypassed by user 'allow' rules or skill allowed-tools",
+        "Fixed full model IDs (e.g., claude-opus-4-5) being silently ignored in agent frontmatter model: field",
+        "Fixed SessionEnd hooks being killed after 1.5s regardless of hook.timeout; now configurable via CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS",
+        "Fixed MCP OAuth authentication hanging when callback port is already in use",
+        "Changed --plugin-dir so local dev copies now override installed marketplace plugins with same name"
+      ],
+      "actionsRequired": [
+        "Note full model IDs now work in agent frontmatter",
+        "Note CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS env var in hooks-reference.md"
+      ]
+    },
+    {
+      "version": "2.1.73",
+      "date": "2026-03-11",
+      "relevantChanges": [
+        "New modelOverrides setting to map model picker entries to custom provider model IDs",
+        "Fixed subagents with model: opus/sonnet/haiku being silently downgraded on Bedrock/Vertex/Foundry",
+        "Changed default Opus model on Bedrock/Vertex/Foundry to Opus 4.6",
+        "Fixed SessionStart hooks firing twice when resuming via --resume or --continue",
+        "Fixed JSON-output hooks injecting no-op system-reminder messages into model context",
+        "Deprecated /output-style command — use /config instead",
+        "Fixed deadlock when many skill files changed at once"
+      ],
+      "actionsRequired": []
+    },
+    {
+      "version": "2.1.72",
+      "date": "2026-03-10",
+      "relevantChanges": [
+        "Restored model parameter on Agent tool for per-invocation model overrides",
+        "SECURITY FIX: PreToolUse hooks returning 'allow' were bypassing deny rules (including enterprise managed settings)",
+        "Fixed permission rule matching: wildcard rules not matching heredocs/embedded newlines/no arguments",
+        "Fixed sandbox permissions: certain write operations incorrectly allowed without prompting",
+        "Fixed skill hooks firing twice per event when hooks-enabled skill invoked by model",
+        "Fixed transcript_path pointing to wrong directory for resumed/forked sessions",
+        "Fixed async hooks not receiving stdin with bash read -r",
+        "Changed CLAUDE.md HTML comments to be hidden from Claude when auto-injected",
+        "Added CLAUDE_CODE_DISABLE_CRON env var to stop scheduled cron jobs mid-session",
+        "Added lsof, pgrep, tput, ss, fd, fdfind to bash auto-approval allowlist",
+        "Fixed SDK prompt cache invalidation in query() calls, reducing input token costs up to 12x"
+      ],
+      "actionsRequired": [
+        "Note security fix: PreToolUse 'allow' bypass of deny rules is fixed",
+        "Note new CLAUDE_CODE_DISABLE_CRON env var in sandbox-guidance.md"
+      ]
+    },
+    {
+      "version": "2.1.71",
+      "date": "2026-03-09",
+      "relevantChanges": [
+        "Task tool renamed to Agent tool in 2.1.63 (Task still works as alias)",
+        "New subagent frontmatter fields: permissionMode, maxTurns, skills, memory, background, mcpServers",
+        "Agent(name) syntax in tools field to restrict spawnable subagent types",
+        "--agents CLI flag for session-scoped subagent definitions",
+        "Subagent scope priority updated: CLI > project > user > plugin",
+        "Persistent subagent memory via memory field (user/project/local scope)",
+        "Preload skills into subagents via skills field",
+        "New skill string substitutions: $ARGUMENTS[N], $N, ${CLAUDE_SESSION_ID}, ${CLAUDE_SKILL_DIR}",
+        "New settings: CLAUDE_CODE_EFFORT_LEVEL, CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING",
+        "New plugin settings: strictKnownMarketplaces, hostPattern marketplace source",
+        "New MCP settings: allowManagedMcpServersOnly",
+        "New env vars: SLASH_COMMAND_TOOL_CHAR_BUDGET, CLAUDE_CODE_DISABLE_BACKGROUND_TASKS, CLAUDE_AUTOCOMPACT_PCT_OVERRIDE",
+        "Weaker sandbox options for restricted Docker/WSL2 environments",
+        "Skill context budget: 2% of context window, fallback 16,000 characters"
+      ],
+      "actionsRequired": [
+        "Updated .claude/rules/agent-development.md: new subagent fields, Task→Agent rename, persistent memory, skills preloading, scope priority, agent spawning restrictions",
+        "Updated .claude/rules/skill-development.md: new string substitution variables ($ARGUMENTS[N], $N, ${CLAUDE_SESSION_ID}, ${CLAUDE_SKILL_DIR}), name field now optional",
+        "Updated .claude/rules/hooks-reference.md: version header updated to 2.1.71+"
+      ]
+    },
+    {
+      "version": "2.1.63",
+      "date": "2026-03-02",
+      "relevantChanges": [],
+      "actionsRequired": [
+        "Review pending - see GitHub issue"
+      ]
+    },
+    {
+      "version": "2.1.50",
+      "date": "2026-02-25",
+      "relevantChanges": [
+        "New hook events: WorktreeCreate, WorktreeRemove, TeammateIdle, TaskCompleted, ConfigChange",
+        "Hook default timeout increased from 60 seconds to 10 minutes",
+        "PermissionRequest hook for auto approve/deny of permission requests",
+        "Stop and SubagentStop clarified as distinct events (main agent vs subagent)",
+        "Agent teams: TeamCreate, SendMessage, TaskOutput, TaskStop native tools",
+        "Task tool isolation: 'worktree' parameter for isolated git worktree execution",
+        "Task tool run_in_background: true parameter for background agent execution",
+        "Agent memory hierarchy: user/project/local/auto scopes",
+        "Multi-agent collaboration via lead+teammates architecture"
+      ],
+      "actionsRequired": [
+        "Created .claude/rules/hooks-reference.md to document hook system enhancements",
+        "Created .claude/rules/agent-development.md to document agent system enhancements"
+      ],
+      "mcpVerification": {
+        "verifiedDate": "2026-02-26",
+        "verifiedIn": "issue-799",
+        "findings": [
+          "OAuth improvements (step-up auth, discovery caching): Remote MCP servers using HTTP+SSE support OAuth 2.1; discovery metadata cached per server URL; step-up auth triggers re-authorization mid-session when additional scopes needed",
+          "Dynamic MCP updates (list_changed): Servers declaring listChanged capability send notifications/tools/list_changed; Claude Code refreshes tool list without session restart",
+          "/mcp enable/disable commands: Session-scoped server toggling; does not modify .mcp.json; use for runtime management",
+          "Plugin.json schema: No new fields required; mcpServers field supports both inline and external file; url+headers fields for remote OAuth servers"
+        ],
+        "actionsRequired": [
+          "Updated agent-patterns-plugin/skills/mcp-management/SKILL.md: was stub (19 lines), now full skill with OAuth, enable/disable, list_changed documentation",
+          "Updated configure-plugin/skills/configure-mcp/SKILL.md: added Runtime Server Management section with /mcp enable/disable command reference",
+          "Updated configure-plugin/skills/configure-mcp/REFERENCE.md: added Remote MCP Servers section with HTTP+SSE OAuth configuration patterns"
+        ]
+      }
+    },
+    {
+      "version": "2.1.7",
+      "date": "2026-01-20",
+      "relevantChanges": [
+        "SubagentStart hook event with input modification",
+        "Hooks in skill/command frontmatter",
+        "context:fork for agent isolation",
+        "disallowedTools for agent restrictions",
+        "Skills and slash commands merged",
+        "Hot-reload for skills/commands",
+        "SlashCommand tool invocation",
+        "Wildcard permission patterns",
+        "Shell operator protections",
+        "SDK migration to @anthropic-ai/claude-agent-sdk"
+      ],
+      "actionsRequired": []
+    },
+    {
+      "version": "2.1.7",
+      "date": "2026-01-14",
+      "relevantChanges": [],
+      "actionsRequired": []
+    }
+  ]
+}

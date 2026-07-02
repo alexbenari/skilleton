@@ -1,0 +1,108 @@
+# Changelog
+
+## [2.3.5](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.3.4...accessibility-plugin-v2.3.5) (2026-05-14)
+
+
+### Code Refactoring
+
+* **accessibility-plugin:** tighten skill descriptions for listing budget ([60e9352](https://github.com/laurigates/claude-plugins/commit/60e93521385d2a0d7b52b664d6f1b2a5e780baff))
+
+## [2.3.4](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.3.3...accessibility-plugin-v2.3.4) (2026-05-09)
+
+
+### Documentation
+
+* trim oversized SKILL.md descriptions across 41 plugins ([#1265](https://github.com/laurigates/claude-plugins/issues/1265)) ([e13d9f4](https://github.com/laurigates/claude-plugins/commit/e13d9f46a010559082c6d5eb61b0cb891843bf97))
+
+## [2.3.3](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.3.2...accessibility-plugin-v2.3.3) (2026-04-25)
+
+
+### Documentation
+
+* **accessibility-plugin:** standardise When to Use tables ([#1181](https://github.com/laurigates/claude-plugins/issues/1181)) ([63f3ce0](https://github.com/laurigates/claude-plugins/commit/63f3ce032e65bf00f45cb6402fa85b161ad1e3d3)), closes [#1156](https://github.com/laurigates/claude-plugins/issues/1156)
+
+## [2.3.2](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.3.1...accessibility-plugin-v2.3.2) (2026-04-17)
+
+
+### Documentation
+
+* update Claude Opus model references to 4.7 ([#1052](https://github.com/laurigates/claude-plugins/issues/1052)) ([9ffadc5](https://github.com/laurigates/claude-plugins/commit/9ffadc553de069f47efebd4d2c54ff89e47649fd))
+
+## [2.3.1](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.3.0...accessibility-plugin-v2.3.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* **blueprint-plugin:** remove model field from skills and fix invocation syntax ([#1007](https://github.com/laurigates/claude-plugins/issues/1007)) ([42e1e5b](https://github.com/laurigates/claude-plugins/commit/42e1e5b6c73d43e5de4b27cdee16e316de44d4c0))
+
+## [2.3.0](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.2.0...accessibility-plugin-v2.3.0) (2026-02-27)
+
+
+### Features
+
+* add metadata fields to skill definitions across all plugins ([#828](https://github.com/laurigates/claude-plugins/issues/828)) ([59b3d1f](https://github.com/laurigates/claude-plugins/commit/59b3d1fadd8fd888f95ced8b071fb66cf6f9c825))
+* add skill invocation control via user-invocable and disable-model-invocation frontmatter ([59b3d1f](https://github.com/laurigates/claude-plugins/commit/59b3d1fadd8fd888f95ced8b071fb66cf6f9c825))
+
+## [2.2.0](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.1.4...accessibility-plugin-v2.2.0) (2026-02-18)
+
+
+### Features
+
+* introduce three-tier model palette (opus/sonnet/haiku) ([#709](https://github.com/laurigates/claude-plugins/issues/709)) ([2c1e9cc](https://github.com/laurigates/claude-plugins/commit/2c1e9ccff5d48c2b426beac5b3b38cd4576c79a0))
+
+## [2.1.4](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.1.3...accessibility-plugin-v2.1.4) (2026-02-14)
+
+
+### Code Refactoring
+
+* extract detailed content to REFERENCE.md files ([#605](https://github.com/laurigates/claude-plugins/issues/605)) ([7efbd83](https://github.com/laurigates/claude-plugins/commit/7efbd83b9a2b1ef67be702206396ba6d8102684d))
+
+## [2.1.3](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.1.2...accessibility-plugin-v2.1.3) (2026-02-08)
+
+
+### Code Refactoring
+
+* reframe negative guidance as positive guidance across skills ([7e755ee](https://github.com/laurigates/claude-plugins/commit/7e755ee1c32c39c124f3204a0d0a8d1d770e1573))
+
+## [2.1.2](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.1.1...accessibility-plugin-v2.1.2) (2026-02-08)
+
+
+### Bug Fixes
+
+* update skill review dates to trigger release sync ([#489](https://github.com/laurigates/claude-plugins/issues/489)) ([ca20d06](https://github.com/laurigates/claude-plugins/commit/ca20d0667baaa31dfa805c7dc775a1828c515223))
+
+## [2.1.1](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.1.0...accessibility-plugin-v2.1.1) (2026-02-01)
+
+
+### Bug Fixes
+
+* enforce granular Bash permissions across all plugins ([#267](https://github.com/laurigates/claude-plugins/issues/267)) ([afeb507](https://github.com/laurigates/claude-plugins/commit/afeb50754838c2923807c8f2a248b3798fd4281c))
+
+## [2.1.0](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v2.0.0...accessibility-plugin-v2.1.0) (2026-01-23)
+
+
+### Features
+
+* add model specification to all skills and commands ([#131](https://github.com/laurigates/claude-plugins/issues/131)) ([81f2961](https://github.com/laurigates/claude-plugins/commit/81f296155b50864b8b1687b9eb18a9c2cbb08791))
+
+## [2.0.0](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v1.0.0...accessibility-plugin-v2.0.0) (2025-12-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agent-patterns-plugin:** Rename @HANDOFF to @AGENT-HANDOFF-MARKER
+
+### Code Refactoring
+
+* **agent-patterns-plugin:** reorganize handoff markers system ([a0b06f8](https://github.com/laurigates/claude-plugins/commit/a0b06f85e3b3cb7a6ca7926d7940499a7460ef57))
+
+## [2.0.0](https://github.com/laurigates/claude-plugins/compare/accessibility-plugin-v1.0.0...accessibility-plugin-v2.0.0) (2025-12-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agent-patterns-plugin:** Rename @HANDOFF to @AGENT-HANDOFF-MARKER
+
+### Code Refactoring
+
+* **agent-patterns-plugin:** reorganize handoff markers system ([a0b06f8](https://github.com/laurigates/claude-plugins/commit/a0b06f85e3b3cb7a6ca7926d7940499a7460ef57))

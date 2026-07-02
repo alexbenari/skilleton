@@ -1,0 +1,608 @@
+---
+paths:
+  - "**/agents/**"
+  - "**/git_repo_agent/**"
+---
+
+# Agent Development (Claude Code 2.1.76+)
+
+Patterns and standards for creating and configuring custom agents in Claude Code plugins.
+
+> **Note (2.1.63)**: The `Task` tool was renamed to `Agent` tool. Existing `Task(...)` references in settings and agent definitions still work as aliases, but new code should use `Agent`.
+
+> **Note (2.1.140)**: The `Agent` tool's `subagent_type` parameter accepts case- and separator-insensitive values. `"Code Reviewer"`, `"code_reviewer"`, and `"code-reviewer"` all resolve to the same agent. Prefer the canonical kebab-case form (`code-reviewer`) in plugin code so grep stays predictable.
+
+> **Note (2.1.143)**: `claude --agent <name>` finds plugin-contributed agents without the `plugin:` prefix. Previously, `claude --agent code-reviewer` only matched user/project agents and silently missed `my-plugin:code-reviewer` even when the plugin was enabled.
+
+> **Note (2.1.139)**: Subagent HTTP requests carry two correlation headers — `x-claude-code-agent-id` identifies the subagent, and `x-claude-code-parent-agent-id` identifies the spawning agent. Use these for tracing in HTTP hooks, MCP servers, and any proxy that wants to attribute traffic to specific agent chains.
+
+> **Note (2.1.157)**: An `agent` field in `settings.json` is honored for dispatched sessions, selecting the named agent definition by default. A `--agent <name>` flag at the call site overrides the settings value.
+
+## Agent vs Skill
+
+| Use Agent When... | Use Skill When... |
+|-------------------|-------------------|
+| Task requires autonomous multi-step work | Task is a guided workflow with human oversight |
+| Context isolation is needed | Context sharing is fine |
+| Parallel execution with other agents | Sequential single-session work |
+| Task produces self-contained output | Task collaborates with the main session |
+| You want to protect the main context window | Main context can absorb the work |
+
+## Agent File Structure
+
+Agents live in `<plugin-name>/agents/<agent-name>.md`.
+
+### Required Frontmatter
+
+```yaml
+---
+name: agent-name
+description: What this agent does and when to use it.
+model: opus
+tools: Glob, Grep, LS, Read, Edit, Write, Bash(npm *), TodoWrite
+created: YYYY-MM-DD
+modified: YYYY-MM-DD
+reviewed: YYYY-MM-DD
+---
+```
+
+### Optional Frontmatter Fields
+
+```yaml
+---
+# ... required fields above ...
+color: "#E53E3E"       # Hex color for UI display
+context: fork          # Context isolation: 'fork' creates independent context copy
+isolation: worktree    # Filesystem isolation: give agent its own git worktree
+permissionMode: default  # Permission mode: default, acceptEdits, dontAsk, bypassPermissions, plan
+maxTurns: 20           # Maximum agentic turns before agent stops
+background: false      # Set true to always run as a background task
+memory: user           # Persistent memory scope: user, project, or local
+skills:                # Preload skill content into agent context at startup
+  - api-conventions
+  - error-handling-patterns
+mcpServers:            # MCP servers available to this agent
+  - slack
+hooks:                 # Agent-scoped hooks (active only when agent is running)
+  Stop:
+    - matcher: ""
+      hooks:
+        - type: command
+          command: "bash ${CLAUDE_PLUGIN_ROOT}/hooks/verify.sh"
+          timeout: 30
+---
+```
+
+> **Note**: Agent hooks defined with `Stop` are automatically converted to `SubagentStop` when the agent runs as a subagent, since subagents fire `SubagentStop` instead of `Stop`.
+
+### Complete Field Reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Agent identifier (kebab-case) |
+| `description` | string | Yes | Purpose and use cases for agent selection |
+| `model` | string | Yes | `opus`, `sonnet`, `haiku`, `inherit`, or full model ID (e.g., `claude-opus-4-7`) — full IDs fixed in 2.1.74 |
+| `tools` | comma-list | Yes | Tools the agent can use; use `Agent(name)` to restrict spawnable subagents |
+| `context` | string | No | `fork` for isolated context (default: shared) |
+| `isolation` | string | No | `worktree` to run agent in an isolated git worktree |
+| `color` | string | No | Hex color for UI display |
+| `permissionMode` | string | No | `default`, `acceptEdits`, `dontAsk`, `bypassPermissions`, or `plan` |
+| `maxTurns` | number | No | Maximum agentic turns before agent stops |
+| `background` | bool | No | Set `true` to always run as a background task |
+| `memory` | string | No | Persistent memory scope: `user`, `project`, or `local` |
+| `skills` | list | No | Skill names to preload into agent context at startup |
+| `mcpServers` | list | No | MCP server names or inline configs available to this agent |
+| `hooks` | object | No | Agent-scoped hooks (same schema as settings.json hooks) |
+| `disallowedTools` | comma-list | No | Tools to deny even if in the inherited list |
+| `created` | date | Recommended | Initial creation date |
+| `modified` | date | Recommended | Last substantive change |
+| `reviewed` | date | Recommended | Last verified against current docs |
+
+### `tools` vs `allowed-tools`
+
+| Field | Used In | Supports |
+|-------|---------|----------|
+| `tools` | Agent `.md` files in `agents/` | Tool names, `Bash(command *)` patterns, `Agent(name)` to restrict subagent spawning |
+| `allowed-tools` | Skill `SKILL.md` files | Tool names, `Bash(command *)` patterns |
+
+Both support granular Bash permission patterns like `Bash(git status *)`.
+
+To restrict which subagents an agent can spawn (when running as main thread with `claude --agent`):
+
+```yaml
+tools: Agent(worker, researcher), Read, Bash
+```
+
+This is an allowlist — only `worker` and `researcher` can be spawned. To allow any subagent without restriction, use `Agent` without parentheses. If `Agent` is omitted, the agent cannot spawn any subagents.
+> **Note (2.1.116+)**: Agent frontmatter `hooks:` and `mcpServers:` are active when the agent runs as a main-thread session via `claude --agent`, not just as subagents.
+
+### MCP Servers in Agent Definitions (2.1.147 / 2.1.153)
+
+| Version | Fix |
+|---------|-----|
+| 2.1.147 | A plugin agent that declares multiple `Agent(...)` types in its `tools:` frontmatter no longer drops all but the last entry — every declared subagent type is now honored |
+| 2.1.153 | Subagent-frontmatter MCP servers now respect `--strict-mcp-config`, `--bare`, remote mode, enterprise managed MCP config, and managed-settings MCP allow/deny policies (previously these constraints were ignored for servers declared in agent frontmatter) |
+| 2.1.153 | `--strict-mcp-config` no longer strips inline `mcpServers` from explicitly-passed agent definitions (`--agents` / SDK `agents`); when a subagent's MCP server is blocked by policy, a visible warning is now surfaced instead of failing silently |
+
+## Model Selection for Agents
+
+| Model | Use For |
+|-------|---------|
+| `opus` | Deep reasoning, security analysis, code review, debugging, complex refactoring |
+| `sonnet` | Development workflows, moderate reasoning, multi-step implementation |
+| `haiku` | Structured/mechanical tasks, documentation generation, CI configuration |
+
+> **Note (2.1.142)**: Fast mode now uses Opus 4.7 by default (previously Opus 4.6). The `CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE` env var is deprecated (removal scheduled 2026-06-01) — drop it from agent launch scripts.
+
+## Context Isolation
+
+### `context: fork`
+
+Creates an independent context copy. The agent sees parent history but its changes don't affect the parent session.
+
+```yaml
+---
+name: research-agent
+description: Research without polluting main context
+model: sonnet
+context: fork
+tools: Glob, Grep, LS, Read, WebFetch, WebSearch, TodoWrite
+---
+```
+
+**When to use `context: fork`:**
+- Exploratory research that shouldn't affect the main session
+- Parallel investigations with potentially conflicting approaches
+- Isolated experiments or background tasks
+- Agents that generate verbose output that would fill the main context
+
+### Worktree Isolation
+
+For filesystem-level isolation, give agents their own git worktree so they work on an isolated copy of the repository. The worktree is automatically cleaned up if the agent makes no changes; if changes are made, the worktree path and branch are returned.
+
+> **Note (2.1.157)**: Claude-managed worktrees are left **unlocked** when the agent finishes, so `git worktree remove` / `git worktree prune` can clean them up directly (previously the lock blocked manual cleanup). `EnterWorktree` can also now switch between Claude-managed worktrees mid-session, rather than being a one-way entry.
+
+**Two ways to enable worktree isolation:**
+
+1. **Agent frontmatter** — baked into the agent definition:
+   ```yaml
+   ---
+   name: implementer
+   isolation: worktree
+   ---
+   ```
+
+2. **Task tool parameter** — set per invocation:
+   ```
+   Task tool with isolation: "worktree"
+   ```
+
+**Use worktree isolation when:**
+- Agent will make commits on a separate branch
+- Multiple agents need to work on independent changes simultaneously
+- You want changes isolated until explicitly merged
+
+**Comparison:**
+
+| Isolation Type | Mechanism | Isolates | Use Case |
+|----------------|-----------|----------|----------|
+| `context: fork` | Context fork | Context window | Research, exploration |
+| `isolation: worktree` | Git worktree | Filesystem + Git | Implementation, commits |
+| Manual worktree | `git worktree add` | Filesystem + Git | Complex multi-issue parallel work |
+
+### `worktree.baseRef` Setting (2.1.133+)
+
+Controls the branch base for `--worktree`, `EnterWorktree`, and agent-isolation worktrees:
+
+| Value | Base Branch | Notes |
+|-------|-------------|-------|
+| `fresh` (default) | `origin/default-branch` | Unpushed local commits NOT included |
+| `head` | Local `HEAD` | Includes unpushed commits; pre-2.1.133 default |
+
+Set `worktree.baseRef: head` to keep unpushed commits in new worktrees.
+
+## Preloading Skills into Agents
+
+Use the `skills` field to inject full skill content into an agent's context at startup. Unlike the main session where skill descriptions are loaded and full content loads on invocation, preloaded skills are fully injected immediately.
+
+```yaml
+---
+name: api-developer
+description: Implement API endpoints following team conventions
+skills:
+  - api-conventions
+  - error-handling-patterns
+---
+Implement API endpoints. Follow the conventions and patterns from the preloaded skills.
+```
+
+Agents do **not** inherit skills from the parent session — they must be listed explicitly.
+> **Note (2.1.133+)**: Subagents can discover project, user, and plugin skills via the `Skill` tool. Skills listed in `skills:` frontmatter are preloaded; the `Skill` tool discovers others on demand.
+
+---
+
+## Background Execution
+
+Agents can run in the background using the Agent tool's `run_in_background` parameter (previously `Task tool`):
+
+```
+Agent tool with run_in_background: true
+```
+
+**Background execution behavior:**
+- Returns immediately without waiting for the agent to finish
+- The main session receives a notification when the agent completes
+- Use `TaskOutput` tool to check on background agent status
+- Use `TaskStop` tool to stop a background agent
+
+**When to use background execution:**
+- Independent work that doesn't need to block the main session
+- Long-running tasks where you want to continue other work
+- Parallel agent pipelines where results are collected later
+
+**When NOT to use background execution:**
+- When you need the agent's output before proceeding
+- When the agent's work must complete before the next step
+- Research agents whose findings inform your next steps
+
+### Background Session Behavior (2.1.141+ / 2.1.142+ / 2.1.143+ / 2.1.154+)
+
+| Version | Change |
+|---------|--------|
+| 2.1.141 | Background agents launched via `/bg` or `←←` preserve the current permission mode (no longer silently demoted to `default`) |
+| 2.1.142 | Background sessions recognize pre-existing git worktrees — previously `EnterWorktree` would refuse the duplicate and block `Edit` for the whole session |
+| 2.1.143 | `claude agents`-launched background sessions honor `permissions.defaultMode` from settings.json (was previously hard-overridden to auto mode) |
+| 2.1.143 | `/bg` preserves `--mcp-config`, `--settings`, `--add-dir`, `--plugin-dir`, and `--strict-mcp-config` across respawn |
+| 2.1.154 | Subagents in background sessions no longer bypass the worktree-isolation guard — previously a background subagent could write to the shared checkout despite isolation being requested |
+
+> **Note (2.1.154)**: `claude agents` accepts `! <command>` to run a shell command as a background session (equivalently `claude --bg --exec '<command>'`). Use it to fire off a one-shot background job from the dashboard without a full interactive session.
+
+### Dynamic Workflows (`/workflows`, 2.1.154+)
+
+`/workflows` orchestrates work across tens to hundreds of background agents from a single session — a fan-out scale beyond manual `/bg` dispatch. Reach for it when a task decomposes into many independent units that each warrant their own background agent; the framework manages the dispatch and result collection.
+
+### `worktree.bgIsolation: "none"` (2.1.143+)
+
+By default, background sessions launch into a fresh `EnterWorktree`. For repositories where worktrees are impractical (submodule-heavy repos, repos with paths longer than the OS-permitted symlink depth, host machines that share the worktree directory with other tools), set:
+
+```json
+{
+  "worktree": {
+    "bgIsolation": "none"
+  }
+}
+```
+
+The background session then edits the working copy directly. Trade-off: concurrent edits between the foreground and background sessions are no longer isolated — see `.claude/rules/agent-coworker-detection.md` for how to detect and avoid clobbering a coworker's in-flight changes.
+
+### Worktree Cleanup Safety (2.1.143+)
+
+When `git worktree remove` fails (e.g., gitignored build artifacts or in-progress files in the worktree), the harness used to fall back to `rm -rf` — silently destroying any non-tracked work. As of 2.1.143, the fallback is gone: the cleanup logs the failure and leaves the worktree in place. Inspect manually with `git worktree list` and remove with `git worktree remove --force <path>` once you have rescued any wanted files.
+
+## Persistent Agent Memory
+
+The `memory` field enables per-agent persistent memory that survives across conversations:
+
+```yaml
+---
+name: code-reviewer
+memory: user
+---
+Update your agent memory with patterns, conventions, and recurring issues you discover.
+```
+
+| Scope | Location | Use When |
+|-------|----------|----------|
+| `user` | `~/.claude/agent-memory/<name>/` | Learning should apply across all projects |
+| `project` | `.claude/agent-memory/<name>/` | Knowledge is project-specific and shareable via git |
+| `local` | `.claude/agent-memory-local/<name>/` | Project-specific but not committed to git |
+
+When `memory` is set, Read/Write/Edit are auto-enabled for the memory directory, and the first 200 lines of `MEMORY.md` are injected into the agent's system prompt.
+
+---
+
+## Agent Memory (Session Hierarchy)
+
+Agents participate in Claude Code's memory hierarchy. Memory is loaded from multiple scopes in order of specificity:
+
+| Scope | Location | Loaded When |
+|-------|----------|-------------|
+| User | `~/.claude/CLAUDE.md` | All sessions for this user |
+| User rules | `~/.claude/rules/*.md` | All sessions for this user |
+| Project | `CLAUDE.md` (project root) | All sessions in this project |
+| Project rules | `.claude/rules/*.md` | All sessions in this project |
+| Local | `CLAUDE.local.md` | Sessions on this machine only (gitignored) |
+| Auto memory | `~/.claude/projects/<project>/memory/` | Persists across sessions automatically |
+
+**For agents:**
+- Agents inherit the full memory hierarchy of their parent session in principle, but **in practice user-level rules under `~/.claude/rules/*.md` do not reliably hold across agent threads** (issue #1109 measured 200+ weekly hook-block reminders even though the rules existed at the user scope).
+- `context: fork` agents see parent memory but don't write back to it
+- Auto memory in `~/.claude/projects/<project>/memory/` persists across all sessions
+
+### Bake Tool-Selection Rules into Agent Bodies
+
+For rules an agent **must not forget** between threads — the friction-mining ones, like "use Glob, not find" — embed them directly in the agent's body so they live in the system prompt rather than depending on inherited memory. Every plugin agent in this repo carries a `## Tool Selection` section that lists the bash idioms the harness blocks and the dedicated tool to use instead. New plugin agents must include the same section; `scripts/check-agent-tool-selection.sh` enforces it.
+
+### Auto Memory Pattern
+
+The auto memory directory (`~/.claude/projects/<project>/memory/`) is loaded into every conversation. Use it to persist cross-session knowledge:
+
+```
+~/.claude/projects/<project>/memory/
+├── MEMORY.md          # Primary memory file (always loaded, max 200 lines shown)
+├── patterns.md        # Architectural patterns discovered
+└── debugging.md       # Project-specific debugging notes
+```
+
+Agents can read and write to auto memory files to build on knowledge across sessions.
+
+## Agent Teams (Multi-Agent Collaboration)
+
+> **Experimental**: Agent teams are disabled by default. Enable with the `--enable-teams` flag or via settings. The API and behavior may change between versions.
+
+Agent teams enable multiple agents to collaborate on complex tasks with a shared task list and messaging.
+
+### Team Architecture
+
+```
+Lead Agent (orchestrator)
+    ├── TeamCreate — creates team and task list
+    ├── Agent tool — spawns teammate agents (previously Task tool)
+    ├── SendMessage — communicates with teammates
+    ├── TaskUpdate — assigns tasks to teammates
+    └── Teammate Agents
+            ├── Read team config from ~/.claude/teams/<team-name>/config.json
+            ├── Use TaskList/TaskUpdate — claim and complete tasks
+            └── Use SendMessage — report back to lead
+```
+
+### Native Team Tools
+
+| Tool | Purpose |
+|------|---------|
+| `TeamCreate` | Create a team with shared task list |
+| `TeamDelete` | Clean up team when work is complete |
+| `SendMessage` | Send messages between agents (DM, broadcast, shutdown) |
+| `TaskOutput` | Get output from background agent |
+| `TaskStop` | Stop a running background agent |
+
+### When to Use Teams
+
+| Scenario | Use Teams | Use Subagents |
+|----------|-----------|---------------|
+| Parallel reviews (security + performance + correctness) | Yes | No |
+| Sequential steps where each needs full context | No | Yes |
+| Background tasks with ongoing communication | Yes | No |
+| Single focused task | No | Yes |
+| Multiple independent changes to the same codebase | Yes (with worktrees) | No |
+
+### Team Configuration
+
+Each agent's `## Team Configuration` section should document its optimal team role:
+
+```markdown
+## Team Configuration
+
+**Recommended role**: Teammate (preferred) or Subagent
+
+| Mode | When to Use |
+|------|-------------|
+| Teammate | Multi-aspect tasks: spawn parallel specialists |
+| Subagent | Single focused task producing one result |
+```
+
+### Team Roles
+
+| Role | Behavior | Advantages |
+|------|----------|------------|
+| **Lead** | Orchestrates team, assigns tasks, receives results | Coordinates complex workflows |
+| **Teammate** | Works in parallel, communicates via messaging | Full context window, can message peers |
+| **Subagent** | Focused isolated execution, returns single result | Simple, bounded tasks |
+
+## Tool Restrictions
+
+### `disallowedTools` Field
+
+Explicitly block specific tools while allowing everything else:
+
+```yaml
+---
+name: read-only-explorer
+description: Explore codebase without modifications
+model: haiku
+tools: Bash, Read, Grep, Glob
+disallowedTools: Write, Edit, NotebookEdit
+---
+```
+
+### Restriction Patterns
+
+| Pattern | Configuration | Use Case |
+|---------|---------------|----------|
+| Read-only research | `tools: Read, Grep, Glob, WebSearch` | Analysis without side effects |
+| Safe code executor | `tools: Bash, Read` + `disallowedTools: Write, Edit` | Run but not modify |
+| Documentation writer | `tools: Read, Write, Edit, Grep, Glob` + `disallowedTools: Bash` | Write docs safely |
+| Full-power developer | `tools: Bash, Read, Write, Edit, Grep, Glob, TodoWrite` | Complete implementation |
+
+## Agent Directory Layout
+
+```
+my-plugin/
+├── .claude-plugin/
+│   └── plugin.json
+├── agents/
+│   ├── specialist-agent.md    # Custom agent definition
+│   └── another-agent.md
+├── skills/
+│   └── ...
+└── README.md
+```
+
+Plugin agents are auto-discovered by Claude Code from the `agents/` directory.
+
+User-level custom agents can be placed in `~/.claude/agents/`.
+
+### Scope Priority
+
+When multiple agents share the same name, higher-priority location wins:
+
+| Location | Scope | Priority |
+|----------|-------|----------|
+| `--agents` CLI flag (JSON) | Current session only | 1 (highest) |
+| `.claude/agents/` | Current project | 2 |
+| `~/.claude/agents/` | All projects | 3 |
+| Plugin `agents/` directory | Where plugin is enabled | 4 (lowest) |
+
+CLI-defined agents use `--agents` flag with JSON (same frontmatter fields, use `prompt` for body):
+```bash
+claude --agents '{"my-agent": {"description": "...", "prompt": "...", "tools": ["Read"]}}'
+```
+
+## Checklist for New Agents
+
+- [ ] Agent name is kebab-case
+- [ ] `description` matches real user intents (not just tool jargon)
+- [ ] `model` is appropriate (`haiku` for mechanical, `sonnet` for development, `opus` for deep reasoning)
+- [ ] `tools` uses principle of least privilege
+- [ ] Granular `Bash(command *)` patterns used instead of bare `Bash`
+- [ ] `context: fork` added if agent needs isolated context window
+- [ ] `isolation: worktree` added if agent needs filesystem-level git isolation
+- [ ] `permissionMode` set if non-default permission behavior is needed
+- [ ] `maxTurns` set if agent should be bounded
+- [ ] `memory` scope set if agent needs cross-session persistence
+- [ ] `skills` list populated if agent needs specific domain knowledge preloaded
+- [ ] `## Team Configuration` section documents teammate vs subagent recommendation
+- [ ] `## Scope` section defines input/output/step count
+- [ ] Date fields set (`created`, `modified`, `reviewed`)
+- [ ] Agent added to plugin `README.md` agents table
+- [ ] If relevant, `color` field set for UI display
+
+---
+
+## Claude Agent SDK (Python) — Interactive Workflows
+
+> Applies to Python applications using `claude-agent-sdk`, not Claude Code plugin agent `.md` files.
+
+### `query()` vs `ClaudeSDKClient`
+
+| | `query()` | `ClaudeSDKClient` |
+|---|---|---|
+| Transport | Unidirectional — closes stdin after prompt | Bidirectional — keeps connection open |
+| Follow-up messages | Not supported | `await client.query(follow_up)` |
+| Use for | One-shot queries, batch processing | Multi-turn, interactive workflows |
+
+### `AskUserQuestion` Does Not Work in SDK Subprocess Mode
+
+When Claude Code CLI runs as an SDK subprocess, its stdin/stdout are piped for the SDK JSON protocol. `AskUserQuestion` cannot reach the terminal — it fails silently, and the model wraps up as if the user provided no input.
+
+**Symptom:** Output shows `Tool: AskUserQuestion` but no prompt appears, and the session ends prematurely.
+
+**Fix:** Use the two-phase interaction pattern instead.
+
+### Two-Phase Interaction Pattern
+
+For interactive workflows that need user input between analysis and execution:
+
+```python
+async def _stream_interactive(prompt, options, completion_msg):
+    async with ClaudeSDKClient(options) as client:
+        # Phase 1: Agent outputs findings and stops
+        await client.query(prompt)
+        async for msg in client.receive_response():
+            display(msg)
+
+        # Python collects user input (works because it's in the host process)
+        user_input = console.input("Select fixes to apply (numbers, all, none): ")
+
+        # Phase 2: Send selections, agent executes
+        await client.query(f"User selected: {user_input}. Execute steps 4-6.")
+        async for msg in client.receive_response():
+            display(msg, completion_msg)
+```
+
+**Key requirements:**
+- Remove `AskUserQuestion` from `allowed_tools` for interactive mode (prevents accidental use)
+- Agent prompt must instruct the model to output findings and **stop** — not continue or ask questions
+- Phase 2 prompt must tell the model exactly what to do with the user's selections
+
+See `git-repo-agent/docs/adr/003` for full context and alternatives considered.
+
+### Worktree Isolation Is Not Supported by `ClaudeAgentOptions`
+
+The `isolation: worktree` frontmatter field works for Claude Code plugin agents, but `ClaudeAgentOptions` (Python SDK) has no equivalent parameter. The workaround is to manage the worktree in Python before launching the agent:
+
+```python
+from pathlib import Path
+import subprocess
+
+def create_worktree(repo_path: Path, branch: str) -> Path:
+    worktree_path = repo_path / ".worktrees" / branch.replace("/", "-")
+    worktree_path.parent.mkdir(parents=True, exist_ok=True)
+    base = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo_path, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "worktree", "add", "-b", branch, str(worktree_path), base],
+        cwd=repo_path, check=True,
+    )
+    return worktree_path
+
+# Set cwd to worktree so agent works in isolation
+worktree_path = create_worktree(repo_path, "feature/my-branch")
+options = ClaudeAgentOptions(cwd=str(worktree_path), ...)
+```
+
+**Instruct the agent not to create branches or push** — the orchestrator owns the worktree lifecycle:
+
+```
+"You are working in a git worktree on branch '{branch}'. Commit your changes
+ directly to this branch. Do NOT create new branches or push."
+```
+
+**Post-workflow cleanup:** Check for commits after the agent finishes, then offer to push and create a PR:
+
+```python
+result = subprocess.run(
+    ["git", "log", "--oneline", f"{base_branch}..HEAD"],
+    cwd=worktree_path, capture_output=True, text=True,
+)
+has_changes = bool(result.stdout.strip())
+```
+
+See `git-repo-agent/docs/adr/004` for full context.
+
+## `claude agents` CLI (2.1.139+, Research Preview)
+
+`claude agents` opens a dashboard listing all Claude Code sessions on the host — running, blocked on a permission prompt, or finished. Use it to attach to a background session, surface a blocked prompt, or list sessions per directory.
+
+```bash
+claude agents                              # full dashboard
+claude agents --cwd ~/projects/my-repo     # scope list to a single directory (2.1.141+)
+```
+
+### Launch Flags (2.1.142+ / 2.1.143+)
+
+The dashboard's "new session" launcher accepts the same flags as the top-level `claude` CLI, so a background session can match the foreground's configuration exactly:
+
+| Flag | Effect |
+|------|--------|
+| `--add-dir <path>` | Add an extra directory to the session's working set |
+| `--settings <file>` | Use a non-default settings.json |
+| `--mcp-config <file>` | Load an MCP server config file |
+| `--plugin-dir <path>` | Add a plugin directory (in addition to discovered ones) |
+| `--permission-mode <mode>` | Start in `default`, `acceptEdits`, `dontAsk`, `bypassPermissions`, or `plan` |
+| `--model <model>` | Pick the model (`opus`, `sonnet`, `haiku`, or full ID) |
+| `--effort <level>` | Set effort (`low`, `medium`, `high`, `max`) |
+| `--dangerously-skip-permissions` | Skip permission prompts — use only in trusted sandboxes |
+
+Pair `--cwd` with the launch flags to spin up isolated, per-directory background sessions without leaving the dashboard.
+
+## Related Rules
+
+- `.claude/rules/agentic-permissions.md` — Granular tool permission patterns
+- `.claude/rules/skill-development.md` — Skill creation (use when agent is not needed)
+- `.claude/rules/agentic-optimization.md` — CLI output optimization for agent consumption
+- `.claude/rules/agent-coworker-detection.md` — Detecting in-flight coworker changes before destructive git ops (relevant when `worktree.bgIsolation: "none"`)
+
+
