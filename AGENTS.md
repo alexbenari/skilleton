@@ -70,6 +70,16 @@ Use automated verification when unit, integration, or e2e tests can directly pro
 
 Do not claim completion from implementation-level evidence when the requested goal is user-visible behavior.
 
+## Shell Choice On Windows
+
+On Windows, default to the active shell and use native syntax for that shell.
+Prefer PowerShell for ordinary file, text, and process operations unless the
+task specifically requires Bash, WSL, Git Bash, or another Unix-style toolchain.
+
+If a task is better suited to Bash on Windows, invoke Bash explicitly rather
+than mixing Bash syntax into a PowerShell command. Do not assume shell features,
+quoting rules, pipes, or multiline input forms transfer between shells.
+
 ## Shell/Text Extraction
 
 When extracting or matching prose from external sources in shell commands, avoid
@@ -77,3 +87,8 @@ embedding long exact strings with smart punctuation, non-ASCII typography, or
 copied whitespace directly into shell string literals. Prefer stable ASCII
 anchors, structural selectors, wildcard fragments, regexes, or source-loaded
 comparison strings that match the minimum needed text.
+
+Match multiline input syntax to the active shell. Do not use Bash heredocs in
+PowerShell; use PowerShell here-strings instead. More generally, verify that
+shell features and quoting syntax are valid for the current shell before
+running extraction or text-processing commands.
