@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Learning Docs"
+  short_description: "Create and maintain durable learning references"
+  default_prompt: "Use $write-learning-docs to create or improve a clear, durable learning document about this topic."
