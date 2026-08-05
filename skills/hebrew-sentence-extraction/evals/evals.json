@@ -1,0 +1,38 @@
+{
+  "skill_name": "hebrew-sentence-extraction",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "wikipedia-presidential-car",
+      "prompt": "I've attached the Hebrew Wikipedia article HTML for \"The Beast\" (the US presidential car). Please extract the plain Hebrew text into a CSV file with one row per sentence. Avoid sentences with mixed Hebrew and English. Strip all markup.",
+      "expected_output": "A CSV with a header row and one Hebrew sentence per row, covering the article's body paragraphs (from the current model through the presidential motorcade section). No HTML tags, no footnote markers like [1], no sentences mixing Hebrew and English (e.g. no rows containing 'Cadillac' or model names spelled in Latin letters), and no See-also/External-links/Footnotes list entries.",
+      "files": ["evals/files/wikipedia_presidential_car.html"],
+      "expectations": [
+        "Output is a CSV file with a header row",
+        "Row count is roughly 85-105 sentences (matches the validated reference extraction of 96)",
+        "No row contains any Latin letters (A-Z or a-z)",
+        "No row contains HTML tags or entities like &nbsp; or <a>",
+        "No row contains a bracketed footnote marker like [1]",
+        "No row is a See-also/External-links/Footnotes citation title (e.g. nothing referencing 'וואלה' or 'מאקו' as a source line)",
+        "Sentence 'הרכב הנוכחי נושא לוחית רישוי של וושינגטון די. סי.' appears as a single row (not split after 'די.')",
+        "A sentence ending in a gershayim measurement abbreviation like 'ס\"מ.' or 'ק\"ג.' correctly ends its row rather than being merged with the next sentence"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "non-wikipedia-news-article",
+      "prompt": "Here's a Hebrew news article saved as HTML (not Wikipedia). Extract the Hebrew sentences into a CSV, one sentence per row, and drop any sentence that mixes Hebrew and English.",
+      "expected_output": "A CSV with one row per sentence from the article body only (not the nav bar, related-articles sidebar, or footer copyright line). Sentences mentioning 'Tesla Model 3' or 'BYD Atto 3' in Latin letters are dropped entirely. The sentence with 'ק. אברהם' (a name with a middle initial) stays as one row instead of being split after 'ק.'. Sentences ending in gershayim abbreviations like ס\"מ or ק\"ג end correctly instead of merging with the next sentence.",
+      "files": ["evals/files/sample_article.html"],
+      "expectations": [
+        "Output is a CSV file with a header row",
+        "Row count is between 10 and 14 sentences",
+        "No row contains any Latin letters (A-Z or a-z)",
+        "No row mentions the nav bar text 'דף הבית' or the footer copyright text 'כל הזכויות שמורות'",
+        "No row is one of the related-articles sidebar titles ('מדריך לרכישת רכב חשמלי' or 'השוואת מחירים בין דגמים')",
+        "The sentence containing 'ק. אברהם' appears as a single row rather than split into two",
+        "A sentence ending in a gershayim abbreviation like ס\"מ. or ק\"ג. ends correctly as its own row"
+      ]
+    }
+  ]
+}

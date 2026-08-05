@@ -12,6 +12,7 @@ Monorepo for skill tooling, reusable skills, and agent-oriented repository docs.
 
 - `skill-manager`: app/codebase for managing the skill library.
 - `skills/json-processing`: Windows-first `jq` skill for querying, filtering, aggregating, and reshaping JSON.
+- `skills/hebrew-sentence-extraction`: extracts clean Hebrew prose sentences from an HTML file (e.g. a saved Wikipedia article) into a CSV, one sentence per row, dropping markup and Hebrew/English mixed-language sentences.
 
 ## Adding more skills
 
