@@ -70,6 +70,15 @@ Use automated verification when unit, integration, or e2e tests can directly pro
 
 Do not claim completion from implementation-level evidence when the requested goal is user-visible behavior.
 
+## Subagent report verification
+
+Before relaying a subagent's report or building on it, independently verify its
+load-bearing claims through the cheapest direct channel (re-run tests, count rows,
+check git state, probe "identical" claims, byte-check encodings of deliverables).
+A completion notification without the brief's deliverable is a stalled agent, not
+a report. Delegation briefs must instruct agents to report spec/oracle
+disagreements rather than tune to match them.
+
 ## Shell Choice On Windows
 
 On Windows, default to the active shell and use native syntax for that shell.
