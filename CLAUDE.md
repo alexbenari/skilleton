@@ -89,6 +89,15 @@ If a task is better suited to Bash on Windows, invoke Bash explicitly rather
 than mixing Bash syntax into a PowerShell command. Do not assume shell features,
 quoting rules, pipes, or multiline input forms transfer between shells.
 
+## Cross-Platform Text and JSON Encoding
+
+When generating JSON or other machine-readable text from PowerShell, write
+UTF-8 without a BOM. Windows PowerShell 5's `-Encoding UTF8` emits a BOM, so
+use an explicit BOM-free UTF-8 encoding when the output will be consumed by
+Node or another strict parser. Readers of generated or legacy JSON should
+tolerate and strip a leading UTF-8 BOM before parsing. Keep this producer and
+consumer behavior covered by a regression fixture or test.
+
 ## Shell/Text Extraction
 
 When extracting or matching prose from external sources in shell commands, avoid
