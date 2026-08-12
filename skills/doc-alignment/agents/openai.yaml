@@ -1,0 +1,4 @@
+interface:
+  display_name: "Doc Alignment"
+  short_description: "Audit living docs against reality and fix confirmed drift"
+  default_prompt: "Run a doc-alignment pass: inventory the living documentation, fan out report-only verification agents, independently confirm their load-bearing findings, fix confirmed drift under doc-update's editing rules, and report fixed vs flagged-for-owner."

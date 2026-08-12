@@ -7,7 +7,9 @@ description: Maintain docs/agent-docs as the canonical agent-facing architecture
 
 Use this skill for repo-local maintenance of `docs/agent-docs/`.
 
-This skill is about durable orientation docs, not routine release-note churn.
+This skill is about durable orientation docs, not routine release-note churn. It is
+change-driven: docs are updated alongside the change that made them stale. For a full audit of
+the existing docs against reality, use the `doc-alignment` skill instead — explicit request only.
 
 ## What the knowledge base is for
 
@@ -31,7 +33,11 @@ Update it for:
 3. changed underlying assumptions,
 4. new substantial features that change how an agent should navigate the code,
 5. infrastructure or deployment changes that affect orientation or validation,
-6. changes that require different routing guidance for future agents.
+6. changes that require different routing guidance for future agents,
+7. a change that turns a previously true absence claim false — a sibling repo cloned in, a
+   dependency vendored, a promised doc finally written; sweep the knowledge base for
+   "none found" / "not present" / "not yet written" claims about the changed thing, since such
+   negative claims expire silently and are the fastest-rotting content in the docs.
 
 Do not update it for:
 

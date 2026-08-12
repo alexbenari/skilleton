@@ -35,7 +35,11 @@ Use the project-local `doc-update` skill when:
 
 Treat architecture documentation as part of the change, not as optional follow-up work, when the change affects durable structure or assumptions.
 
-If the `doc-update` skill does not exist, notify the user.
+For a full audit of the existing documentation against the actual state of the repository, use
+the project-local `doc-alignment` skill — on explicit request only; it fans out verification
+agents and is expensive.
+
+If either skill does not exist, notify the user.
 
 ## Code design guidance
 

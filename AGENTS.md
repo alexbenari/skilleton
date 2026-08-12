@@ -35,7 +35,11 @@ Use the project-local `doc-update` skill when:
 
 Treat architecture documentation as part of the change, not as optional follow-up work, when the change affects durable structure or assumptions.
 
-If the `doc-update` skill does not exist, notify the user.
+For a full audit of the existing documentation against the actual state of the repository, use
+the project-local `doc-alignment` skill — on explicit request only; it fans out verification
+agents and is expensive.
+
+If either skill does not exist, notify the user.
 
 ## Code design guidance
 
@@ -69,6 +73,15 @@ Verification must prove that goal, not just prove that code changed or tests pas
 Use automated verification when unit, integration, or e2e tests can directly prove the goal. If the goal involves perceived UX, real app behavior, performance, media playback, layout, or other behavior not fully covered by tests, perform targeted manual QA in the actual app and report what was verified.
 
 Do not claim completion from implementation-level evidence when the requested goal is user-visible behavior.
+
+## Subagent report verification
+
+Before relaying a subagent's report or building on it, independently verify its
+load-bearing claims through the cheapest direct channel (re-run tests, count rows,
+check git state, probe "identical" claims, byte-check encodings of deliverables).
+A completion notification without the brief's deliverable is a stalled agent, not
+a report. Delegation briefs must instruct agents to report spec/oracle
+disagreements rather than tune to match them.
 
 ## Shell Choice On Windows
 
