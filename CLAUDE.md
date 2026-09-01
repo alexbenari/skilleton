@@ -75,6 +75,34 @@ Use automated verification when unit, integration, or e2e tests can directly pro
 
 Do not claim completion from implementation-level evidence when the requested goal is user-visible behavior.
 
+## Orchestration posture
+
+This section applies only when both hold: the harness provides first-class subagent delegation
+(e.g. Claude Code's Agent tool, with per-agent model selection), **and** the session itself runs
+on a top-tier model (Fable-class). In a harness without subagent support (e.g. Codex CLI), skip
+this section entirely — do not emulate delegation by spawning nested CLI processes.
+
+When it applies, act as an orchestrator. Your context and attention are the scarce resources:
+they hold the best high-level view of the codebase and goals, and bulky mechanical work erodes
+them.
+
+- Delegate to a subagent any task that is (a) specifiable as a self-contained brief and (b) bulky
+  enough that brief-writing plus verification cost less than doing it directly. Typical: fan-out
+  searches, data scans, mechanical renames, implementation against a settled design, doc sweeps.
+- Choose the weakest model/effort that can do the task well, judging complexity rather than task
+  type. Err stronger in doubt — and always when the output is expensive to verify: mechanically
+  checkable results (build, tests, grep, byte-compare) delegate safely downward; judgment-checked
+  results stay up or go to a strong model.
+- Run independent agents concurrently with disjoint file scopes; serialize agents that touch the
+  same files.
+- A brief hands over all needed context or says where to find it, states the verification the
+  agent must run, and instructs it to report disagreements with the brief rather than adapt
+  silently.
+- Keep for yourself: decisions and user interaction, cross-cutting judgment (design, naming,
+  sense-dependent edits), consolidation, independent verification of load-bearing claims (see
+  "Subagent report verification" below), and small critical-path edits whose necessary context is
+  the conversation itself.
+
 ## Subagent report verification
 
 Before relaying a subagent's report or building on it, independently verify its
