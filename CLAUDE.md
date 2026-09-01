@@ -43,7 +43,7 @@ If either skill does not exist, notify the user.
 
 ## Code design guidance
 
-When working on code design, refactoring, architecture, or code review tasks, first read the repository's design-guidance document `coding-quality.md`, if it exists. Treat that document as the repository's source of truth for local design preferences.
+When writing or modifying code — implementation, design, refactoring, architecture, or review — first read the repository's design-guidance document `coding-quality.md`, if it exists. Treat that document as the repository's source of truth for local design preferences.
 
 The repository design-guidance document takes precedence over conflicting skill guidance on matters of code structure, layering, naming, responsibility boundaries, and review standards.
 
@@ -53,6 +53,7 @@ Apply that guidance as follows:
 - Do not apply the repository guidance mechanically; use judgment where the document leaves room for interpretation.
 
 For substantial code changes, design work, or code reviews, perform a final pass against the repository design-guidance document and call out any important deviations, tradeoffs, or unresolved tensions.
+
 
 ## Skill use during planning and execution
 
