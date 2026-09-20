@@ -3,6 +3,10 @@ const path = require("path");
 
 class AppConfigError extends Error {}
 
+function textOrNull(value) {
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
 class AppConfig {
   constructor({ configPath, fileSystem = fs } = {}) {
     if (!configPath) {
@@ -12,17 +16,27 @@ class AppConfig {
     this.fileSystem = fileSystem;
   }
 
+  normalize(parsed) {
+    const evaluation = parsed && typeof parsed.evaluation === "object" ? parsed.evaluation : {};
+    return {
+      lastSelectedLibraryId:
+        parsed && Number.isInteger(parsed.lastSelectedLibraryId)
+          ? parsed.lastSelectedLibraryId
+          : null,
+      evaluation: {
+        codexCliPath: textOrNull(evaluation.codexCliPath),
+        claudeCliPath: textOrNull(evaluation.claudeCliPath),
+      },
+    };
+  }
+
   read() {
     if (!this.fileSystem.existsSync(this.configPath)) {
-      return { lastSelectedLibraryId: null };
+      return this.normalize(null);
     }
     try {
       const raw = this.fileSystem.readFileSync(this.configPath, "utf8");
-      const parsed = JSON.parse(raw);
-      return {
-        lastSelectedLibraryId:
-          Number.isInteger(parsed.lastSelectedLibraryId) ? parsed.lastSelectedLibraryId : null,
-      };
+      return this.normalize(JSON.parse(raw));
     } catch (error) {
       throw new AppConfigError(
         `Failed to read app config ${this.configPath}: ${error.message}`
@@ -31,10 +45,7 @@ class AppConfig {
   }
 
   write(config) {
-    const payload = {
-      lastSelectedLibraryId:
-        Number.isInteger(config.lastSelectedLibraryId) ? config.lastSelectedLibraryId : null,
-    };
+    const payload = this.normalize(config);
     const parentDir = path.dirname(this.configPath);
     this.fileSystem.mkdirSync(parentDir, { recursive: true });
     const tmpPath = `${this.configPath}.tmp`;
@@ -58,11 +69,23 @@ class AppConfig {
   }
 
   setLastSelectedLibraryId(libraryId) {
-    return this.write({ lastSelectedLibraryId: libraryId });
+    return this.write({ ...this.read(), lastSelectedLibraryId: libraryId });
   }
 
   clearLastSelectedLibraryId() {
-    return this.write({ lastSelectedLibraryId: null });
+    return this.setLastSelectedLibraryId(null);
+  }
+
+  setEvaluationCliPaths({ codexCliPath, claudeCliPath }) {
+    const current = this.read();
+    return this.write({
+      ...current,
+      evaluation: {
+        codexCliPath: codexCliPath === undefined ? current.evaluation.codexCliPath : codexCliPath,
+        claudeCliPath:
+          claudeCliPath === undefined ? current.evaluation.claudeCliPath : claudeCliPath,
+      },
+    });
   }
 }
 

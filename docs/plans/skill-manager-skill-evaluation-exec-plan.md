@@ -24,11 +24,12 @@ Decision Log.
 
 - [x] (2026-09-20 00:00Z) Spec signed off in
   `docs/specs/skill-manager-skill-evaluation-spec.md`.
-- [ ] Milestone 1 - Catalog, definition model, and store.
+- [x] (2026-09-20) Milestone 1 - catalog, definition model, and store. 38 new
+  tests pass; a four-mutation check confirms they fail for the right reason.
+- [ ] Milestone 3 - Workspace preparation, isolation checks, and subject
+  activation. Modules written, tests pending.
 - [ ] Milestone 2 - Agent CLI spike: isolated home, non-interactive run, output
   parsing, on both Codex and Claude.
-- [ ] Milestone 3 - Workspace preparation, isolation checks, and subject
-  activation.
 - [ ] Milestone 4 - Agent runner boundary with fake runner and real adapters.
 - [ ] Milestone 5 - Evidence: inventory, check runner, cost record, arm
   results.
@@ -106,6 +107,15 @@ Unavailable skills or fallbacks:
   this repo's guidance.
   Evidence: `head ~/.codex/AGENTS.md`, 2026-09-18.
 
+- Discovery: Both CLIs are installed but outside PATH. Claude Code CLI is at
+  `C:\Users\alexb\AppData\Roaming\Claude\claude-code\2.1.275\claude.exe`;
+  Codex CLI is at
+  `C:\Users\alexb\AppData\Local\OpenAI\Codex\bin\247581e40ee272fb\codex.exe`.
+  The Claude path carries a version number, so it moves on upgrade and must be
+  configurable rather than pinned.
+  Evidence: `Get-Process claude | Select Path` and a search of
+  `%LOCALAPPDATA%\OpenAI`, 2026-09-20.
+
 - Discovery: Non-interactive flags exist for both CLIs. Claude:
   `claude -p --output-format json|stream-json --model <m> --effort
   low|medium|high|xhigh|max --permission-mode <mode> --max-turns <n>
@@ -122,6 +132,15 @@ Unavailable skills or fallbacks:
   was drafted from, although both are installed for the user. CLI paths must
   be configurable.
   Evidence: `Get-Command claude`, `Get-Command codex` on 2026-09-18.
+
+- Discovery: A subagent told to follow `testing-discipline` will run that
+  skill's "test the test" step by mutating the module under test and restoring
+  it. Mid-cycle the working tree legitimately holds a deliberately broken
+  module, which looks like sabotage from outside. Verify against the agent's
+  backups before intervening; stopping it mid-cycle is what risks leaving a
+  mutation in place.
+  Evidence: this plan's Milestone 1 execution on 2026-09-20. The agent kept
+  byte-exact backups and every live module matched them after the stop.
 
 - Discovery: `skill-manager/package.json` has one dependency (`electron`) and
   no test script; tests run with `node --test tests/unit/*.test.js` and
@@ -197,6 +216,25 @@ Unavailable skills or fallbacks:
   overrides `SKILL_MANAGER_CODEX_CLI` and `SKILL_MANAGER_CLAUDE_CLI`.
   Rationale: Neither CLI is reliably on `PATH`; `AppConfig` already owns app
   preference state.
+  Date/Author: 2026-09-20 / Claude
+
+- Decision: Scenario front matter is JSON, not YAML, fenced by `---` lines
+  inside the scenario `.md`.
+  Rationale: The scenario shape nests lists of objects (`checks`,
+  `review.dimensions`), and the plan's original "small hand-written key/value
+  and list reader" would be a YAML subset parser with its own bug surface for
+  no gain. `JSON.parse` on the fenced block is unambiguous and still leaves the
+  prompt as readable Markdown. Deviation from this plan's Milestone 1 text,
+  recorded here as PLANS.md requires.
+  Date/Author: 2026-09-20 / Claude
+
+- Decision: Split the single "evaluation root" into a catalog root and a store
+  root, resolved by `electron/evaluation-paths.js`.
+  Rationale: The two have opposite lifecycles. Fixtures, scenarios, and
+  subjects are checked in and read-only at run time; definitions, arm results,
+  comparisons, and reports are generated and must stay out of the repository.
+  One module owns both resolutions plus the CLI path overrides, so Electron
+  and the command line cannot drift.
   Date/Author: 2026-09-20 / Claude
 
 - Decision: Add no new npm dependencies for v1. Scenario check scripts that
