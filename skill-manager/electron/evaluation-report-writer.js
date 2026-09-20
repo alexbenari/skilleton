@@ -252,6 +252,15 @@ function writeReport({
     `This comparison covers scenario ${scenarioId} only.`,
     `Blinding: ${reviews.map((review) => `${review.reviewer}=${review.blinding}`).join(", ")}.`,
   ];
+  const risks = (comparison.bundle && comparison.bundle.risks) || [];
+  if (risks.length > 0) {
+    const byLabel = [...new Set(risks.map((risk) => risk.label))].join(" and ");
+    scope.push(
+      `Blinding was weaker than requested: output ${byLabel} names its own guidance ` +
+        `(${[...new Set(risks.map((risk) => risk.term))].join(", ")}), which the app cannot ` +
+        "remove without altering the work under review."
+    );
+  }
   for (const note of comparison.drift || []) {
     scope.push(`Drift: ${note}`);
   }

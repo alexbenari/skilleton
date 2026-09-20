@@ -169,15 +169,92 @@ function armEvidence(stored, terms) {
   };
 }
 
+// The retained workspace holds what activation wrote. Copying it into the
+// bundle would hand the reviewer the guidance itself, and the guided arm would
+// be the one with extra files in it.
+function copyWithoutActivation(sourcePath, destinationPath, artifacts, fileSystem) {
+  const excluded = artifacts.map((artifact) => artifact.split(/[\\/]/).join(path.sep));
+  const isExcluded = (relativePath) =>
+    excluded.some(
+      (artifact) => relativePath === artifact || relativePath.startsWith(`${artifact}${path.sep}`)
+    );
+  fileSystem.cpSync(sourcePath, destinationPath, {
+    recursive: true,
+    dereference: true,
+    filter: (source) => {
+      const relativePath = path.relative(sourcePath, source);
+      return relativePath === "" || !isExcluded(relativePath);
+    },
+  });
+}
+
+// Blinding removes the configuration signals the app controls. It cannot
+// remove what an output says about itself, so a guided arm that writes about
+// its own guidance is measured and reported rather than quietly altered.
+function blindingRisks(bundlePath, reference, candidate, assignment, fileSystem) {
+  const subjectNames = new Set();
+  for (const stored of [reference, candidate]) {
+    for (const subject of stored.armConfiguration.guidanceSet || []) {
+      subjectNames.add(subject.name);
+      if (subject.workspacePath) {
+        subjectNames.add(path.posix.basename(subject.workspacePath));
+      }
+    }
+  }
+  if (subjectNames.size === 0) {
+    return [];
+  }
+  const risks = [];
+  for (const label of ARM_LABELS) {
+    const armPath = path.join(bundlePath, label);
+    if (!fileSystem.existsSync(armPath)) {
+      continue;
+    }
+    const walk = (directory) => {
+      for (const entry of fileSystem.readdirSync(directory, { withFileTypes: true })) {
+        const entryPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          walk(entryPath);
+          continue;
+        }
+        let text = "";
+        try {
+          text = fileSystem.readFileSync(entryPath, "utf8");
+        } catch {
+          continue;
+        }
+        for (const name of subjectNames) {
+          if (text.includes(name)) {
+            risks.push({
+              label,
+              term: name,
+              file: path.relative(bundlePath, entryPath).split(path.sep).join("/"),
+            });
+          }
+        }
+      }
+    };
+    walk(armPath);
+  }
+  return risks;
+}
+
 class ReviewBundle {
-  constructor({ rootPath, assignment, blinding, variedFactor, rubric, scenarioPrompt }) {
+  constructor({ rootPath, assignment, blinding, variedFactor, rubric, scenarioPrompt, risks = [] }) {
     this.rootPath = rootPath;
     this.assignment = assignment;
     this.blinding = blinding;
     this.variedFactor = variedFactor;
     this.rubric = Object.freeze([...rubric]);
     this.scenarioPrompt = scenarioPrompt;
+    this.risks = Object.freeze(risks.map((risk) => Object.freeze({ ...risk })));
     Object.freeze(this);
+  }
+
+  // An arm whose own output names its guidance is identifiable no matter what
+  // the bundle excludes, so the effective blinding is weaker than requested.
+  effectiveBlinding() {
+    return this.risks.length === 0 ? this.blinding : "partial";
   }
 
   armPath(label) {
@@ -189,6 +266,8 @@ class ReviewBundle {
       rootPath: this.rootPath,
       assignment: this.assignment.toJSON(),
       blinding: this.blinding,
+      effectiveBlinding: this.effectiveBlinding(),
+      risks: this.risks.map((risk) => ({ ...risk })),
       variedFactor: this.variedFactor,
       rubric: [...this.rubric],
     };
@@ -227,10 +306,12 @@ function buildReviewBundle({
     for (const run of stored.runs || []) {
       const retained = run.retained && run.retained.workspacePath;
       if (retained && fileSystem.existsSync(retained)) {
-        fileSystem.cpSync(retained, path.join(armPath, `run-${run.runIndex}`), {
-          recursive: true,
-          dereference: true,
-        });
+        copyWithoutActivation(
+          retained,
+          path.join(armPath, `run-${run.runIndex}`),
+          (run.activation && run.activation.artifacts) || [],
+          fileSystem
+        );
       }
     }
   }
@@ -255,6 +336,7 @@ function buildReviewBundle({
     variedFactor,
     rubric,
     scenarioPrompt,
+    risks: blindingRisks(outputPath, reference, candidate, assignment, fileSystem),
   });
 }
 

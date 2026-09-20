@@ -74,6 +74,7 @@ function storedRun({
   checks = [],
   manifest = null,
   retainedWorkspacePath = null,
+  activationArtifacts = null,
 } = {}) {
   return {
     runIndex,
@@ -94,7 +95,7 @@ function storedRun({
     evidence,
     checks,
     manifest,
-    activation: null,
+    activation: activationArtifacts === null ? null : { artifacts: activationArtifacts },
     workspacePath: null,
     artifactsPath: null,
     retained: { workspacePath: retainedWorkspacePath, transcriptPath: null },
@@ -305,6 +306,107 @@ test("the review bundle holds the task, the rubric and one labelled directory pe
       { dimensions: RUBRIC }
     );
     assert.equal(bundle.blinding, "partial");
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+// The first clean end-to-end run exposed this: the guided arm's copied
+// workspace still held the AGENTS.md and the guidance document activation had
+// written, so one arm had extra files and the other did not.
+test("the review bundle leaves out the files activation wrote, so the arms stay symmetric", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const outputPath = path.join(tempRoot, "bundle");
+    const guidedWorkspace = path.join(tempRoot, "guided-workspace");
+    const plainWorkspace = path.join(tempRoot, "plain-workspace");
+    for (const workspacePath of [guidedWorkspace, plainWorkspace]) {
+      fs.mkdirSync(path.join(workspacePath, "docs"), { recursive: true });
+      fs.writeFileSync(path.join(workspacePath, "docs", "output.md"), "# Output\n", "utf8");
+      fs.writeFileSync(path.join(workspacePath, "requirements.md"), "R1. Do the thing.\n", "utf8");
+    }
+    fs.writeFileSync(path.join(guidedWorkspace, "AGENTS.md"), "# Pointer\n", "utf8");
+    fs.writeFileSync(path.join(guidedWorkspace, "house-style.md"), "# Guidance\n", "utf8");
+
+    const bundle = bundleFor(outputPath, {
+      reference: referenceArm({
+        runs: [storedRun({ retainedWorkspacePath: plainWorkspace, activationArtifacts: [] })],
+      }),
+      candidate: candidateArm({
+        runs: [
+          storedRun({
+            retainedWorkspacePath: guidedWorkspace,
+            activationArtifacts: ["AGENTS.md", "house-style.md"],
+          }),
+        ],
+      }),
+    });
+
+    const namesUnder = (label) => {
+      const root = path.join(bundle.armPath(label), "run-1");
+      return filesUnder(root)
+        .map((filePath) => path.relative(root, filePath).split(path.sep).join("/"))
+        .sort();
+    };
+
+    assert.deepEqual(namesUnder("A"), ["docs/output.md", "requirements.md"]);
+    assert.deepEqual(namesUnder("A"), namesUnder("B"));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("an output that names its own guidance downgrades the effective blinding and is reported", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const outputPath = path.join(tempRoot, "bundle");
+    const guidedWorkspace = path.join(tempRoot, "guided-workspace");
+    const plainWorkspace = path.join(tempRoot, "plain-workspace");
+    fs.mkdirSync(guidedWorkspace, { recursive: true });
+    fs.mkdirSync(plainWorkspace, { recursive: true });
+    fs.writeFileSync(
+      path.join(guidedWorkspace, "plan.md"),
+      "I followed house-style.md when writing this.\n",
+      "utf8"
+    );
+    fs.writeFileSync(path.join(plainWorkspace, "plan.md"), "I wrote this plan.\n", "utf8");
+
+    const bundle = bundleFor(outputPath, {
+      variedFactor: "guidance",
+      reference: referenceArm({
+        runs: [storedRun({ retainedWorkspacePath: plainWorkspace, activationArtifacts: [] })],
+      }),
+      candidate: candidateArm({
+        armConfiguration: armConfiguration({
+          effort: "medium",
+          guidanceSet: [
+            {
+              kind: "referenced-document",
+              name: "house-style",
+              sourcePath: "D:\\subjects\\house-style.md",
+              fingerprint: "sha256:guidance",
+              pointerText: "Read house-style.md.",
+              workspacePath: "house-style.md",
+            },
+          ],
+        }),
+        runs: [
+          storedRun({
+            retainedWorkspacePath: guidedWorkspace,
+            activationArtifacts: ["house-style.md"],
+          }),
+        ],
+      }),
+    });
+
+    assert.equal(bundle.blinding, "full");
+    assert.equal(bundle.effectiveBlinding(), "partial");
+    assert.equal(bundle.risks.length > 0, true);
+    assert.equal(
+      bundle.risks.every((risk) => risk.label === bundle.assignment.labelFor("candidate")),
+      true
+    );
+    assert.equal(bundle.risks[0].file.endsWith("plan.md"), true);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
