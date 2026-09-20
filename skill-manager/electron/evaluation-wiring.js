@@ -9,9 +9,14 @@ const { EvaluationWorkspace } = require("./evaluation-workspace");
 const { IsolatedAgentHome } = require("./evaluation-home");
 const { resolveCatalogRoot, resolveCliPaths, resolveStoreRoot } = require("./evaluation-paths");
 
-function buildAdapters(cliPaths) {
+const REVIEW_SANDBOX_ENV_VAR = "SKILL_MANAGER_CODEX_REVIEW_SANDBOX";
+
+function buildAdapters(cliPaths, env = process.env) {
   return {
-    codex: new CodexAgentAdapter({ cliPath: cliPaths.codex }),
+    codex: new CodexAgentAdapter({
+      cliPath: cliPaths.codex,
+      reviewSandbox: env[REVIEW_SANDBOX_ENV_VAR] || "read-only",
+    }),
     claude: new ClaudeAgentAdapter({ cliPath: cliPaths.claude }),
   };
 }
@@ -26,7 +31,7 @@ function createEvaluationService({ appConfig = null, userDataPath = null, tempRo
     store: new EvaluationStore({ rootPath: resolveStoreRoot({ env, userDataPath }) }),
     workspace: new EvaluationWorkspace({ tempRootPath }),
     isolatedHome: new IsolatedAgentHome(),
-    runner: new AgentRunner({ adapters: buildAdapters(cliPaths) }),
+    runner: new AgentRunner({ adapters: buildAdapters(cliPaths, env) }),
     checkRunner: new CheckRunner(),
     tempRootPath,
   });
@@ -35,4 +40,5 @@ function createEvaluationService({ appConfig = null, userDataPath = null, tempRo
 module.exports = {
   createEvaluationService,
   buildAdapters,
+  REVIEW_SANDBOX_ENV_VAR,
 };

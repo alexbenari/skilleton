@@ -305,6 +305,8 @@ class EvaluationService {
       arm,
       home,
       timeoutMs,
+      transcriptPath: path.join(this.store.comparisonDirectory(comparisonId), "review-transcript.jsonl"),
+      lastMessagePath: path.join(this.store.comparisonDirectory(comparisonId), "review-last-message.txt"),
     });
     return this.attachReview(comparisonId, review);
   }

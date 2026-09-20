@@ -1,6 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 
+const { fingerprintDirectory } = require("./evaluation-fingerprint");
+
 class EvaluationReviewError extends Error {}
 
 const RECOMMENDATIONS = [
@@ -167,7 +169,17 @@ class ModelReviewer {
     this.fileSystem = fileSystem;
   }
 
-  async review({ bundle, arm, home = null, timeoutMs = null, transcriptPath = null }) {
+  async review({
+    bundle,
+    arm,
+    home = null,
+    timeoutMs = null,
+    transcriptPath = null,
+    lastMessagePath = null,
+  }) {
+    // The reviewer must not change what it is judging. Where the sandbox can
+    // enforce that it does; where it cannot, this is what catches it.
+    const before = fingerprintDirectory(bundle.rootPath, this.fileSystem);
     const record = await this.runner.run({
       role: "review",
       arm,
@@ -180,7 +192,15 @@ class ModelReviewer {
       }),
       timeoutMs,
       transcriptPath,
+      lastMessagePath,
     });
+    const after = fingerprintDirectory(bundle.rootPath, this.fileSystem);
+    if (before !== after) {
+      throw new EvaluationReviewError(
+        "The evaluation model changed the review bundle while reviewing it, so its verdict " +
+          "is about evidence it altered. The review is discarded."
+      );
+    }
     if (record.status !== "completed") {
       throw new EvaluationReviewError(
         `The evaluation model did not complete its review: ${record.failureReason || record.status}.`
@@ -198,11 +218,19 @@ class ModelReviewer {
       recommendation: relabelRecommendation(parsed.recommendation, bundle.assignment),
       reasoning: parsed.reasoning,
       uncertainty: parsed.uncertainty || "",
-      blinding: bundle.blinding,
+      blinding: effectiveBlindingOf(bundle),
       evaluationModel: arm.model,
       evaluationModelFamily: arm.agent,
     });
   }
+}
+
+// A bundle whose outputs name their own guidance was never fully blind, so the
+// review records what blinding it actually had, not what was asked for.
+function effectiveBlindingOf(bundle) {
+  return typeof bundle.effectiveBlinding === "function"
+    ? bundle.effectiveBlinding()
+    : bundle.effectiveBlinding || bundle.blinding;
 }
 
 function recordUserReview({ bundle, input }) {
@@ -212,7 +240,7 @@ function recordUserReview({ bundle, input }) {
     recommendation: relabelRecommendation(input.recommendation, bundle.assignment),
     reasoning: input.reasoning,
     uncertainty: input.uncertainty || "",
-    blinding: input.unblinded ? "none" : bundle.blinding,
+    blinding: input.unblinded ? "none" : effectiveBlindingOf(bundle),
     unblinded: Boolean(input.unblinded),
     pairVerdicts: input.pairVerdicts || [],
   });

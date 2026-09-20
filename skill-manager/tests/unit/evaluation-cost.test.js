@@ -161,10 +161,13 @@ test("a skill subject is trigger-gated and counts the runs whose transcript sett
   }
 });
 
-test("a referenced-document subject is pointer-gated rather than preloaded", () => {
+// A referenced document costs its pointer on every turn whether or not the
+// document is read, and the document's own bytes only once it is.
+test("a referenced-document subject is pointer-gated and charged for its pointer", () => {
   const tempRoot = makeTempRoot();
   try {
-    const guidanceSet = new GuidanceSet([referencedDocumentSubject(tempRoot)]);
+    const subject = referencedDocumentSubject(tempRoot);
+    const guidanceSet = new GuidanceSet([subject]);
     const runRecords = [runWithSignal("coding-quality", "referenced-document", "activated")];
 
     const record = costRecordFor({ guidanceSet, runRecords });
@@ -172,7 +175,7 @@ test("a referenced-document subject is pointer-gated rather than preloaded", () 
     assert.equal(costFor(record, "coding-quality").bytes, DOCUMENT_BYTES);
     assert.deepEqual(costFor(record, "coding-quality").delivery, {
       mode: "pointer-gated",
-      deliveredInstructionBytes: 0,
+      deliveredInstructionBytes: Buffer.byteLength(subject.pointerText, "utf8"),
       activatedRuns: 1,
       undeterminedRuns: 0,
       totalRuns: 1,

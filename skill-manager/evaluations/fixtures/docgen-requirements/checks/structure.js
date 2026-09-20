@@ -23,9 +23,12 @@ function markdownFilesUnder(relativeDirectory) {
     .map((entry) => path.join(directory, entry.name));
 }
 
+// Headings are matched case-insensitively. "## Non-goals" and "## Non-Goals"
+// are the same section, and failing an output over the capital G would report a
+// cosmetic difference as a structural defect.
 function missingHeadings(filePath, headings) {
-  const text = fs.readFileSync(filePath, "utf8");
-  return headings.filter((heading) => !text.includes(heading));
+  const text = fs.readFileSync(filePath, "utf8").toLowerCase();
+  return headings.filter((heading) => !text.includes(heading.toLowerCase()));
 }
 
 const findings = [];

@@ -89,7 +89,12 @@ function deliveryFor(subject, activationRecord, runRecords) {
   const undeterminedCount = states.filter((state) => state === "undetermined").length;
   return {
     mode: subject.kind === "skill" ? "trigger-gated" : "pointer-gated",
-    deliveredInstructionBytes: 0,
+    // A referenced document costs its pointer on every turn whether or not the
+    // document is ever read; the document's own bytes cost nothing until then.
+    deliveredInstructionBytes:
+      subject.kind === "referenced-document" && subject.pointerText
+        ? Buffer.byteLength(subject.pointerText, "utf8")
+        : 0,
     activatedRuns: activatedCount,
     undeterminedRuns: undeterminedCount,
     totalRuns: states.length,

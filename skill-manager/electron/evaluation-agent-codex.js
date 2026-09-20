@@ -6,8 +6,15 @@ const { ActivationSignal, AgentRunnerError, RunRecord } = require("./evaluation-
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 
+const SANDBOX_BYPASS = "--dangerously-bypass-approvals-and-sandbox";
+
 class CodexAgentAdapter {
-  constructor({ cliPath, process: agentProcess = new AgentProcess(), fileSystem = fs } = {}) {
+  constructor({
+    cliPath,
+    process: agentProcess = new AgentProcess(),
+    fileSystem = fs,
+    reviewSandbox = "read-only",
+  } = {}) {
     if (!cliPath) {
       throw new AgentRunnerError("CodexAgentAdapter needs a cliPath.");
     }
@@ -15,15 +22,19 @@ class CodexAgentAdapter {
     this.cliPath = cliPath;
     this.process = agentProcess;
     this.fileSystem = fileSystem;
+    this.reviewSandbox = reviewSandbox;
   }
 
   // The Windows sandbox fails on this machine with CreateProcessWithLogonW 1385
   // even under the user's own CODEX_HOME, so a task run has to bypass it. A
-  // review never writes, so it keeps the read-only sandbox.
+  // review keeps the read-only sandbox where that works; where it does not, the
+  // reviewer cannot read the bundle at all, and ModelReviewer verifies instead
+  // that the bundle was left unchanged.
   sandboxArgs(role) {
-    return role === "review"
-      ? ["--sandbox", "read-only"]
-      : ["--dangerously-bypass-approvals-and-sandbox"];
+    if (role !== "review") {
+      return [SANDBOX_BYPASS];
+    }
+    return this.reviewSandbox === "bypass" ? [SANDBOX_BYPASS] : ["--sandbox", "read-only"];
   }
 
   buildArgs(request) {
@@ -154,11 +165,22 @@ class CodexAgentAdapter {
       });
   }
 
-  readLastMessage(request) {
-    if (!request.lastMessagePath || !this.fileSystem.existsSync(request.lastMessagePath)) {
-      return "";
+  // The -o file is only written when the caller asks for one, so the event
+  // stream is the fallback: the final answer arrives as an agent_message item.
+  readLastMessage(request, events) {
+    if (request.lastMessagePath && this.fileSystem.existsSync(request.lastMessagePath)) {
+      return this.fileSystem.readFileSync(request.lastMessagePath, "utf8");
     }
-    return this.fileSystem.readFileSync(request.lastMessagePath, "utf8");
+    const message = [...events]
+      .reverse()
+      .find(
+        (event) =>
+          event.type === "item.completed" &&
+          event.item &&
+          event.item.type === "agent_message" &&
+          typeof event.item.text === "string"
+      );
+    return message ? message.item.text : "";
   }
 
   async run(request) {
@@ -195,7 +217,7 @@ class CodexAgentAdapter {
       endedAt: outcome.endedAt,
       durationMs: outcome.durationMs,
       transcriptPath: request.transcriptPath || null,
-      lastMessage: this.readLastMessage(request),
+      lastMessage: this.readLastMessage(request, events),
       modelRequested: request.arm.model,
       modelReported: rollout.model || null,
       effortRequested: request.arm.effort,
