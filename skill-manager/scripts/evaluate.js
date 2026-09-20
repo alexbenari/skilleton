@@ -1,9 +1,12 @@
 const fs = require("fs");
 const path = require("path");
 
+const os = require("os");
+
 const { EvaluationCatalog } = require("../electron/evaluation-catalog");
 const { EvaluationDefinitionBuilder } = require("../electron/evaluation-definition-builder");
 const { EvaluationStore } = require("../electron/evaluation-store");
+const { createEvaluationService } = require("../electron/evaluation-wiring");
 const { resolveCatalogRoot, resolveStoreRoot } = require("../electron/evaluation-paths");
 
 const USAGE = `Usage: node scripts/evaluate.js <command> [options]
@@ -12,6 +15,9 @@ Commands:
   list                        List evaluation targets and scenarios.
   define --input <file.json>  Build and save an evaluation definition.
   show <definitionId>         Print a saved definition.
+  run <definitionId>          Run both arms and build the blinded review bundle.
+  review <comparisonId>       Record a user verdict from --input <file.json>.
+  report <comparisonId>       Print the path of a comparison's report.
 
 Options:
   --catalog <dir>   Catalog root (default: skill-manager/evaluations)
@@ -105,6 +111,78 @@ function commandShow(positional, options) {
   process.stdout.write(`${JSON.stringify(definition.toJSON(), null, 2)}\n`);
 }
 
+function buildService(options) {
+  return createEvaluationService({
+    tempRootPath: options.temp || os.tmpdir(),
+    userDataPath: null,
+  });
+}
+
+function describeProgress(event) {
+  if (event.phase === "run-event") {
+    return null;
+  }
+  if (event.phase === "run-started") {
+    return `  ${event.role} run ${event.runIndex} started on ${event.agent}`;
+  }
+  if (event.phase === "run-finished") {
+    const checks = (event.checks || []).map((check) => `${check.id}=${check.status}`).join(", ");
+    return `  ${event.role} run ${event.runIndex}: ${event.status}${checks ? ` (${checks})` : ""}`;
+  }
+  if (event.phase === "arm-started") {
+    return `${event.role} arm starting`;
+  }
+  return `${event.phase}`;
+}
+
+async function commandRun(positional, options) {
+  const [, definitionId] = positional;
+  if (!definitionId) {
+    throw new Error("run requires a definition id");
+  }
+  const service = buildService(options);
+  const result = await service.startEvaluation(definitionId, {
+    onProgress: (event) => {
+      const line = describeProgress(event);
+      if (line) {
+        process.stdout.write(`${line}\n`);
+      }
+    },
+  });
+  process.stdout.write(`\nComparison: ${result.comparisonId}\n`);
+  process.stdout.write(`Varied factor: ${result.comparison.variedFactor}\n`);
+  for (const note of result.comparison.drift) {
+    process.stdout.write(`Drift: ${note}\n`);
+  }
+  process.stdout.write(`Review bundle: ${result.bundle.rootPath}\n`);
+  process.stdout.write(`Blinding: ${result.bundle.blinding}\n`);
+  process.stdout.write(
+    `Rubric: ${result.bundle.rubric.join(", ")}\n` +
+      "Read A/ and B/ in the bundle, then record a verdict with:\n" +
+      `  node scripts/evaluate.js review ${result.comparisonId} --input verdict.json\n`
+  );
+}
+
+async function commandReview(positional, options) {
+  const [, comparisonId] = positional;
+  if (!comparisonId || !options.input || options.input === true) {
+    throw new Error("review requires a comparison id and --input <file.json>");
+  }
+  const service = buildService(options);
+  const input = JSON.parse(fs.readFileSync(path.resolve(options.input), "utf8"));
+  const result = service.addUserReview(comparisonId, input);
+  process.stdout.write(`Report written to ${result.reportPath}\n`);
+}
+
+function commandReport(positional, options) {
+  const [, comparisonId] = positional;
+  if (!comparisonId) {
+    throw new Error("report requires a comparison id");
+  }
+  const service = buildService(options);
+  process.stdout.write(`${service.store.reportPath(comparisonId)}\n`);
+}
+
 function main(argv) {
   const { positional, options } = parseArguments(argv);
   const [command] = positional;
@@ -117,6 +195,13 @@ function main(argv) {
       return 0;
     case "show":
       commandShow(positional, options);
+      return 0;
+    case "run":
+      return commandRun(positional, options);
+    case "review":
+      return commandReview(positional, options);
+    case "report":
+      commandReport(positional, options);
       return 0;
     default:
       process.stdout.write(USAGE);

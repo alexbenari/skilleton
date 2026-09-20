@@ -713,6 +713,34 @@
           width: auto;
         }
       }
+      .evaluation-arm {
+        flex: 1 1 320px;
+        min-width: 300px;
+      }
+      .evaluation-arm h3 {
+        margin: 0 0 6px;
+        font-size: 14px;
+      }
+      #evaluation-panel textarea {
+        width: 100%;
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 12px;
+      }
+      .evaluation-log {
+        max-height: 220px;
+        overflow: auto;
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 12px;
+        white-space: pre-wrap;
+        margin-top: 10px;
+      }
+      #evaluation-dimensions label {
+        display: block;
+        margin-top: 8px;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
@@ -723,6 +751,7 @@
             <button id="library-trigger" type="button" class="secondary path-chip">Library: Not set</button>
             <button id="refresh-skills-button" type="button" class="secondary">Refresh</button>
             <button id="add-skills-button" type="button" class="secondary">Add Skills</button>
+            <button id="evaluation-toggle" type="button" class="secondary">Evaluate</button>
           </div>
           <div class="command-group">
             <button id="project-trigger" type="button" class="secondary path-chip">Project: No project</button>
@@ -750,6 +779,138 @@
           <div id="filter-chips" class="chip-row"></div>
         </div>
         <div id="skills" class="skills-grid"></div>
+      </section>
+
+      <section id="evaluation-panel" class="panel section" hidden>
+        <div class="skills-header">
+          <div class="skills-header-copy">
+            <h2>Guidance Evaluation</h2>
+            <div id="evaluation-meta" class="meta">
+              Compare two configurations that differ in exactly one factor.
+            </div>
+          </div>
+          <div id="evaluation-availability" class="meta"></div>
+        </div>
+
+        <div class="row wrap">
+          <div>
+            <label for="evaluation-target">Target</label>
+            <select id="evaluation-target"></select>
+          </div>
+          <div>
+            <label for="evaluation-scenario">Scenario</label>
+            <select id="evaluation-scenario"></select>
+          </div>
+          <div>
+            <label for="evaluation-factor">Varied factor</label>
+            <select id="evaluation-factor">
+              <option value="guidance">guidance</option>
+              <option value="agent">agent</option>
+              <option value="model">model</option>
+              <option value="effort">effort</option>
+            </select>
+          </div>
+          <div id="evaluation-mode-wrap">
+            <label for="evaluation-mode">Guidance difference</label>
+            <select id="evaluation-mode">
+              <option value="absent">absent</option>
+              <option value="prior-version">prior-version</option>
+              <option value="alternative-configuration">alternative-configuration</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row wrap">
+          <div>
+            <label for="evaluation-reviewer">Reviewer</label>
+            <select id="evaluation-reviewer">
+              <option value="user">user</option>
+              <option value="model">model</option>
+              <option value="both">both</option>
+            </select>
+          </div>
+          <div>
+            <label for="evaluation-framing">Decision framing</label>
+            <select id="evaluation-framing">
+              <option value="improvement">improvement</option>
+              <option value="non-inferiority">non-inferiority</option>
+            </select>
+          </div>
+          <div>
+            <label for="evaluation-repetitions">Repetitions per arm</label>
+            <input id="evaluation-repetitions" type="number" min="1" value="1">
+          </div>
+          <div>
+            <label for="evaluation-id">Definition id</label>
+            <input id="evaluation-id" type="text" placeholder="coding-quality-v1-vs-v2">
+          </div>
+        </div>
+
+        <div class="row wrap">
+          <div class="evaluation-arm">
+            <h3>Reference arm</h3>
+            <label for="evaluation-reference-agent">Agent / model / effort</label>
+            <div class="row">
+              <select id="evaluation-reference-agent"></select>
+              <input id="evaluation-reference-model" type="text" placeholder="model">
+              <input id="evaluation-reference-effort" type="text" placeholder="effort" value="high">
+            </div>
+            <label for="evaluation-reference-guidance">Guidance set (JSON array)</label>
+            <textarea id="evaluation-reference-guidance" rows="6">[]</textarea>
+          </div>
+          <div class="evaluation-arm">
+            <h3>Candidate arm</h3>
+            <label for="evaluation-candidate-agent">Agent / model / effort</label>
+            <div class="row">
+              <select id="evaluation-candidate-agent"></select>
+              <input id="evaluation-candidate-model" type="text" placeholder="model">
+              <input id="evaluation-candidate-effort" type="text" placeholder="effort" value="high">
+            </div>
+            <label for="evaluation-candidate-guidance">Guidance set (JSON array)</label>
+            <textarea id="evaluation-candidate-guidance" rows="6">[]</textarea>
+          </div>
+        </div>
+
+        <div class="row wrap">
+          <button id="evaluation-propose" type="button" class="secondary">Propose plan</button>
+          <button id="evaluation-save" type="button" class="secondary">Save definition</button>
+          <button id="evaluation-start" type="button">Start evaluation</button>
+          <button id="evaluation-cancel" type="button" class="secondary">Cancel</button>
+        </div>
+
+        <div id="evaluation-plan" class="meta"></div>
+        <pre id="evaluation-log" class="evaluation-log"></pre>
+
+        <div id="evaluation-review" hidden>
+          <h3>Blinded review</h3>
+          <div id="evaluation-review-intro" class="meta"></div>
+          <div class="row wrap">
+            <button id="evaluation-open-a" type="button" class="secondary">Open output A</button>
+            <button id="evaluation-open-b" type="button" class="secondary">Open output B</button>
+            <button id="evaluation-unblind" type="button" class="secondary">Unblind</button>
+          </div>
+          <div id="evaluation-dimensions"></div>
+          <div class="row wrap">
+            <div>
+              <label for="evaluation-recommendation">Overall</label>
+              <select id="evaluation-recommendation">
+                <option value="reference-better">A better</option>
+                <option value="candidate-better">B better</option>
+                <option value="mixed">mixed</option>
+                <option value="equivalent">equivalent</option>
+                <option value="inconclusive">inconclusive</option>
+              </select>
+            </div>
+          </div>
+          <label for="evaluation-reasoning">Reasoning</label>
+          <textarea id="evaluation-reasoning" rows="4"></textarea>
+          <label for="evaluation-uncertainty">Uncertainty</label>
+          <textarea id="evaluation-uncertainty" rows="2"></textarea>
+          <div class="row wrap">
+            <button id="evaluation-submit-review" type="button">Submit verdict</button>
+            <button id="evaluation-open-report" type="button" class="secondary">Open report</button>
+          </div>
+        </div>
       </section>
     </div>
 
@@ -803,5 +964,6 @@
     </div>
 
     <script src="./renderer.js"></script>
+    <script src="./evaluation-panel.js"></script>
   </body>
 </html>

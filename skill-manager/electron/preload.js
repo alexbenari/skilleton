@@ -38,4 +38,26 @@ contextBridge.exposeInMainWorld("skillManager", {
   listDirectories: (targetPath) => invoke("skill-manager:list-directories", targetPath),
   pickFolder: (defaultPath) => invoke("skill-manager:pick-folder", defaultPath),
   openExternal: (targetUrl) => invoke("skill-manager:open-external", targetUrl),
+
+  evaluation: {
+    listCatalog: () => invoke("skill-manager:evaluation-list-catalog"),
+    availability: () => invoke("skill-manager:evaluation-availability"),
+    proposePlan: (input) => invoke("skill-manager:evaluation-propose-plan", input),
+    saveDefinition: (request) => invoke("skill-manager:evaluation-save-definition", request),
+    listArmResults: (filter) => invoke("skill-manager:evaluation-list-arm-results", filter),
+    listComparisons: () => invoke("skill-manager:evaluation-list-comparisons"),
+    start: (definitionId, options) =>
+      invoke("skill-manager:evaluation-start", definitionId, options),
+    cancel: (definitionId) => invoke("skill-manager:evaluation-cancel", definitionId),
+    submitUserReview: (comparisonId, input) =>
+      invoke("skill-manager:evaluation-submit-user-review", comparisonId, input),
+    openReport: (comparisonId) => invoke("skill-manager:evaluation-open-report", comparisonId),
+    openPath: (targetPath) => invoke("skill-manager:evaluation-open-path", targetPath),
+    setCliPaths: (paths) => invoke("skill-manager:evaluation-set-cli-paths", paths),
+    onProgress: (callback) => {
+      const listener = (_, event) => callback(event);
+      ipcRenderer.on("skill-manager:evaluation-progress", listener);
+      return () => ipcRenderer.removeListener("skill-manager:evaluation-progress", listener);
+    },
+  },
 });

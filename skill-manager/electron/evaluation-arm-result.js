@@ -61,6 +61,7 @@ class ArmResult {
     agentVersion = null,
     modelIdentifier = null,
     homeRecord = null,
+    ambientGuidance = null,
     runs = [],
     costRecord = null,
     createdAt = new Date().toISOString(),
@@ -86,6 +87,7 @@ class ArmResult {
     this.agentVersion = agentVersion;
     this.modelIdentifier = modelIdentifier;
     this.homeRecord = homeRecord;
+    this.ambientGuidance = ambientGuidance;
     this.runs = Object.freeze([...runs]);
     this.costRecord = costRecord;
     this.createdAt = createdAt;
@@ -158,6 +160,7 @@ class ArmResult {
       agentVersion: this.agentVersion,
       modelIdentifier: this.modelIdentifier,
       home: this.homeRecord ? this.homeRecord.toJSON() : null,
+      ambientGuidance: this.ambientGuidance ? this.ambientGuidance.toJSON() : null,
       isolation: this.isolationSummary(),
       activation: this.activationSummary(),
       sampleSize: this.sampleSize(),

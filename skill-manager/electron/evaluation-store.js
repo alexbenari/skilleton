@@ -183,6 +183,44 @@ class EvaluationStore {
     );
   }
 
+  comparisonDirectory(id) {
+    return path.join(this.comparisonsPath(), id);
+  }
+
+  saveComparison(comparison) {
+    const directory = this.comparisonDirectory(comparison.id);
+    if (this.fileSystem.existsSync(path.join(directory, "comparison.json"))) {
+      throw new EvaluationStoreError(
+        `Comparison ${comparison.id} already exists; create a new comparison rather than ` +
+          "overwriting a historical one."
+      );
+    }
+    return this.writeJsonAtomically(path.join(directory, "comparison.json"), comparison);
+  }
+
+  loadComparison(id) {
+    return this.readJson(
+      path.join(this.comparisonDirectory(id), "comparison.json"),
+      `Comparison ${id}`
+    );
+  }
+
+  reportPath(id) {
+    return path.join(this.comparisonDirectory(id), "report.md");
+  }
+
+  listComparisons() {
+    const root = this.comparisonsPath();
+    if (!this.fileSystem.existsSync(root)) {
+      return [];
+    }
+    return listDirectoryNames(root, this.fileSystem)
+      .filter((id) =>
+        this.fileSystem.existsSync(path.join(this.comparisonDirectory(id), "comparison.json"))
+      )
+      .map((id) => this.loadComparison(id));
+  }
+
   listArmResults(filter = {}) {
     const root = this.armResultsPath();
     if (!this.fileSystem.existsSync(root)) {
