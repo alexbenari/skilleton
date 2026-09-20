@@ -123,6 +123,85 @@ class EvaluationStore {
       .map((id) => ({ id, versions: this.savedVersions(id) }))
       .filter((entry) => entry.versions.length > 0);
   }
+
+  armResultDirectory(id) {
+    return path.join(this.armResultsPath(), id);
+  }
+
+  // Retained run outputs are copied out of the temp workspace, never executed
+  // from here, so the store can live wherever the user wants it.
+  retainWorkspace(armResult, run) {
+    if (!run.workspacePath || !this.fileSystem.existsSync(run.workspacePath)) {
+      return null;
+    }
+    const destination = path.join(
+      this.armResultDirectory(armResult.id),
+      `run-${run.runIndex}`,
+      "workspace"
+    );
+    this.fileSystem.mkdirSync(path.dirname(destination), { recursive: true });
+    this.fileSystem.rmSync(destination, { recursive: true, force: true });
+    this.fileSystem.cpSync(run.workspacePath, destination, { recursive: true });
+    return destination;
+  }
+
+  retainTranscript(armResult, run) {
+    const transcriptPath = run.runRecord.transcriptPath;
+    if (!transcriptPath || !this.fileSystem.existsSync(transcriptPath)) {
+      return null;
+    }
+    const destination = path.join(
+      this.armResultDirectory(armResult.id),
+      `run-${run.runIndex}`,
+      "transcript.jsonl"
+    );
+    this.fileSystem.mkdirSync(path.dirname(destination), { recursive: true });
+    this.fileSystem.copyFileSync(transcriptPath, destination);
+    return destination;
+  }
+
+  saveArmResult(armResult, { retainWorkspaces = true } = {}) {
+    const directory = this.armResultDirectory(armResult.id);
+    if (this.fileSystem.existsSync(path.join(directory, "arm.json"))) {
+      throw new EvaluationStoreError(
+        `Arm result ${armResult.id} already exists; create a new arm result rather than ` +
+          "overwriting a historical one."
+      );
+    }
+    const payload = armResult.toJSON();
+    for (const [index, run] of armResult.runs.entries()) {
+      const retained = {
+        workspacePath: retainWorkspaces ? this.retainWorkspace(armResult, run) : null,
+        transcriptPath: this.retainTranscript(armResult, run),
+      };
+      payload.runs[index].retained = retained;
+    }
+    return this.writeJsonAtomically(path.join(directory, "arm.json"), payload);
+  }
+
+  loadArmResult(id) {
+    return this.readJson(
+      path.join(this.armResultDirectory(id), "arm.json"),
+      `Arm result ${id}`
+    );
+  }
+
+  listArmResults(filter = {}) {
+    const root = this.armResultsPath();
+    if (!this.fileSystem.existsSync(root)) {
+      return [];
+    }
+    return this.fileSystem
+      .readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+      .filter((id) => this.fileSystem.existsSync(path.join(this.armResultDirectory(id), "arm.json")))
+      .map((id) => this.loadArmResult(id))
+      .filter((stored) =>
+        Object.entries(filter).every(([key, value]) => value === undefined || stored[key] === value)
+      );
+  }
 }
 
 module.exports = {

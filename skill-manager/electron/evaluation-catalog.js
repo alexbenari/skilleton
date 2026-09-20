@@ -32,10 +32,11 @@ function requireOneOf(value, allowed, label, filePath) {
 }
 
 class CheckDefinition {
-  constructor({ id, kind, command, timeoutSeconds = 600 }, filePath) {
+  constructor({ id, kind, command, timeoutSeconds = 600, shell = null }, filePath) {
     this.id = requireText(id, "Check id", filePath);
     this.kind = requireOneOf(kind, CHECK_KINDS, `Check ${id} kind`, filePath);
     this.command = requireText(command, `Check ${id} command`, filePath);
+    this.shell = shell;
     if (this.isManifestCommand()) {
       const step = this.manifestStep();
       if (!MANIFEST_STEPS.includes(step)) {
@@ -70,6 +71,7 @@ class CheckDefinition {
       kind: this.kind,
       command: this.command,
       timeoutSeconds: this.timeoutSeconds,
+      shell: this.shell,
     };
   }
 }
