@@ -61,9 +61,20 @@ async function main() {
       const el = (id) => document.getElementById(id);
       report.bridgePresent = Boolean(window.skillManager && window.skillManager.evaluation);
       report.panelHiddenBefore = el("evaluation-panel").hidden;
+      // A loaded library renders a long list above the panel. Without this the
+      // harness only ever tests the empty-library case, where the panel happens
+      // to be on screen already.
+      el("skills").innerHTML = Array.from({ length: 40 }, (_, i) =>
+        '<div class="skill-card" style="height:120px">skill ' + i + '</div>'
+      ).join("");
       el("evaluation-toggle").click();
       await new Promise((r) => setTimeout(r, 2500));
       report.panelHiddenAfter = el("evaluation-panel").hidden;
+      const rect = el("evaluation-panel").getBoundingClientRect();
+      report.panelOnScreen = rect.top < window.innerHeight && rect.bottom > 0;
+      report.panelTop = Math.round(rect.top);
+      report.toggleLabel = el("evaluation-toggle").textContent;
+      report.skillsHiddenWhileEvaluating = el("skills-section").hidden;
       report.targetOptions = [...el("evaluation-target").options].map((o) => o.value);
       report.scenarioOptions = [...el("evaluation-scenario").options].map((o) => o.value);
       report.agentOptions = [...el("evaluation-reference-agent").options].map((o) => o.value);
@@ -73,12 +84,25 @@ async function main() {
       report.plan = el("evaluation-plan").textContent;
       report.dimensionInputs = el("evaluation-dimensions").querySelectorAll("textarea").length;
       report.log = el("evaluation-log").textContent.trim().split("\\n").filter(Boolean);
+      el("evaluation-toggle").click();
+      await new Promise((r) => setTimeout(r, 400));
+      report.skillsRestoredAfterClose = el("skills-section").hidden === false;
+      report.panelHiddenAfterClose = el("evaluation-panel").hidden;
+      report.toggleLabelAfterClose = el("evaluation-toggle").textContent;
       return report;
     })()
   `);
 
   console.log("bridge exposed to renderer:", result.bridgePresent);
   console.log("panel hidden before click:", result.panelHiddenBefore, "| after click:", result.panelHiddenAfter);
+  console.log("panel on screen after click:", result.panelOnScreen, "| top:", result.panelTop);
+  console.log("skills list hidden while evaluating:", result.skillsHiddenWhileEvaluating);
+  console.log("toggle label after opening:", result.toggleLabel);
+  console.log(
+    "closing restores skills:", result.skillsRestoredAfterClose,
+    "| panel hidden:", result.panelHiddenAfterClose,
+    "| label:", result.toggleLabelAfterClose
+  );
   console.log("targets in dropdown:", result.targetOptions.join(", ") || "(none)");
   console.log("scenarios in dropdown:", result.scenarioOptions.join(", ") || "(none)");
   console.log("agents in dropdown:", result.agentOptions.join(", ") || "(none)");
@@ -95,6 +119,10 @@ async function main() {
     result.bridgePresent &&
     result.panelHiddenBefore === true &&
     result.panelHiddenAfter === false &&
+    result.panelOnScreen === true &&
+    result.skillsHiddenWhileEvaluating === true &&
+    result.skillsRestoredAfterClose === true &&
+    result.panelHiddenAfterClose === true &&
     result.targetOptions.length > 0 &&
     result.scenarioOptions.length > 0 &&
     result.agentOptions.length > 0 &&

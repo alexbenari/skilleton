@@ -147,9 +147,27 @@
       .map((input) => ({ name: input.dataset.dimension, assessment: input.value.trim() }));
   }
 
+  // Evaluation is a mode of its own, not a section of the skills browser. The
+  // skills list is long once a library is loaded, and appending a panel below
+  // it put the panel off screen, so opening it looked like nothing happened.
+  function showEvaluation(shouldShow) {
+    panel.hidden = !shouldShow;
+    el("skills-section").hidden = shouldShow;
+    el("evaluation-toggle").textContent = shouldShow ? "Back to Skills" : "Evaluate";
+    const sidePanel = el("side-panel");
+    if (shouldShow && sidePanel) {
+      sidePanel.setAttribute("aria-hidden", "true");
+      sidePanel.classList.remove("open");
+    }
+    window.scrollTo(0, 0);
+  }
+
   el("evaluation-toggle").addEventListener("click", async () => {
-    panel.hidden = !panel.hidden;
-    if (!panel.hidden && !state.catalog) {
+    showEvaluation(panel.hidden);
+    if (panel.hidden) {
+      return;
+    }
+    if (!state.catalog) {
       await guard(loadCatalog, "Loading the evaluation catalog");
     }
   });
