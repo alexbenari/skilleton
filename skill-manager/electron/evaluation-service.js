@@ -5,7 +5,11 @@ const { ArmResult, ArmRun } = require("./evaluation-arm-result");
 const { EvaluationDefinitionBuilder } = require("./evaluation-definition-builder");
 const { SubjectActivation } = require("./evaluation-activation");
 const { ArmAssignment, assertComparable, buildReviewBundle } = require("./evaluation-comparison");
-const { assertNoAmbientCollision, scanAmbientGuidance } = require("./evaluation-ambient-guidance");
+const {
+  assertNoAmbientCollision,
+  detectContamination,
+  scanAmbientGuidance,
+} = require("./evaluation-ambient-guidance");
 const { costRecordFor } = require("./evaluation-cost");
 const { describeWorkspace, readRunManifest } = require("./evaluation-evidence");
 const { fingerprintValues } = require("./evaluation-fingerprint");
@@ -162,6 +166,16 @@ class EvaluationService {
       status: runRecord.status,
       checks: checkResults.map((result) => ({ id: result.checkId, status: result.status })),
     });
+    const contamination = detectContamination({
+      transcriptPath: prepared.transcriptPath,
+      ownGuidanceSet: arm.guidanceSet,
+      otherGuidanceSet: definition.armFor(role === "reference" ? "candidate" : "reference")
+        .guidanceSet,
+      fileSystem: this.fileSystem,
+    });
+    if (contamination.length > 0) {
+      this.emit(onProgress, { phase: "contamination", role, runIndex, contamination });
+    }
     return new ArmRun({
       runIndex,
       runRecord,
@@ -171,6 +185,7 @@ class EvaluationService {
       activationRecord: activation,
       workspacePath: prepared.workspacePath,
       artifactsPath: prepared.artifactsPath,
+      contamination,
     });
   }
 

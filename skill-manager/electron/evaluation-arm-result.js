@@ -10,6 +10,7 @@ class ArmRun {
     activationRecord = null,
     workspacePath = null,
     artifactsPath = null,
+    contamination = [],
   }) {
     this.runIndex = runIndex;
     this.runRecord = runRecord;
@@ -19,6 +20,7 @@ class ArmRun {
     this.activationRecord = activationRecord;
     this.workspacePath = workspacePath;
     this.artifactsPath = artifactsPath;
+    this.contamination = Object.freeze(contamination.map((entry) => Object.freeze({ ...entry })));
     Object.freeze(this);
   }
 
@@ -40,6 +42,7 @@ class ArmRun {
       activation: this.activationRecord ? this.activationRecord.toJSON() : null,
       workspacePath: this.workspacePath,
       artifactsPath: this.artifactsPath,
+      contamination: this.contamination.map((entry) => ({ ...entry })),
     };
   }
 }
