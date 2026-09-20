@@ -76,8 +76,13 @@ class EvaluationWorkspace {
   // Both agents walk upward for instruction files, so a workspace placed under
   // any directory carrying one would feed that guidance into both arms and the
   // comparison would measure nothing.
+  //
+  // The walk starts at the workspace's parent. The workspace's own instruction
+  // file is what activation writes, and a leftover one from a previous run at
+  // the same path is removed by prepare before the agent starts. A fixture that
+  // ships one is caught by assertNoFixtureCollision instead.
   assertNoInstructionAncestry(targetPath) {
-    let current = path.resolve(targetPath);
+    let current = path.dirname(path.resolve(targetPath));
     while (true) {
       for (const filename of INSTRUCTION_FILENAMES) {
         const candidate = path.join(current, filename);
@@ -153,8 +158,8 @@ class EvaluationWorkspace {
     const rootPath = path.join(this.baseFor(evaluationId), role, `run-${runIndex}`);
     const workspacePath = path.join(rootPath, "workspace");
     const artifactsPath = path.join(rootPath, "artifacts");
-    this.assertNoInstructionAncestry(workspacePath);
     this.fileSystem.rmSync(rootPath, { recursive: true, force: true });
+    this.assertNoInstructionAncestry(workspacePath);
     this.fileSystem.mkdirSync(workspacePath, { recursive: true });
     this.fileSystem.mkdirSync(artifactsPath, { recursive: true });
     this.fileSystem.cpSync(target.contentPath, workspacePath, { recursive: true });

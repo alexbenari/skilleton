@@ -154,6 +154,75 @@ test("prepare rejects a fixture shipping a nested CLAUDE.md", () => {
   }
 });
 
+// The guard is about ancestry. A workspace is not its own ancestor, and the
+// instruction file inside it is precisely what activation writes, so checking
+// the workspace directory itself would reject every second run.
+test("assertNoInstructionAncestry ignores an instruction file in the workspace itself", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const workspacePath = path.join(tempRoot, "runs", "run-1", "workspace");
+    writeFile(path.join(workspacePath, "AGENTS.md"), "# Written by activation\n");
+    writeFile(path.join(workspacePath, "CLAUDE.md"), "# Written by activation\n");
+    const workspace = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") });
+
+    assert.doesNotThrow(() => workspace.assertNoInstructionAncestry(workspacePath));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("assertNoInstructionAncestry rejects an instruction file in the workspace's immediate parent", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const workspacePath = path.join(tempRoot, "runs", "run-1", "workspace");
+    fs.mkdirSync(workspacePath, { recursive: true });
+    const leakingFile = path.join(tempRoot, "runs", "run-1", "AGENTS.md");
+    writeFile(leakingFile, "# Left in the run root\n");
+    const workspace = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") });
+
+    assert.throws(
+      () => workspace.assertNoInstructionAncestry(workspacePath),
+      (error) =>
+        error instanceof EvaluationWorkspaceError && error.message.includes(leakingFile)
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+// The second real end-to-end run failed here: the candidate arm reused the
+// same workspace path, and activation's own AGENTS.md from the previous run
+// was still sitting there when the ancestry guard ran.
+test("prepare replaces a previous run's activation artifacts instead of refusing the workspace", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const target = makeTarget(path.join(tempRoot, "fixture"));
+    const workspace = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") });
+    const first = workspace.prepare({
+      evaluationId: "eval-1",
+      role: "candidate",
+      runIndex: 1,
+      target,
+    });
+    writeFile(path.join(first.workspacePath, "AGENTS.md"), "# Written by activation\n");
+    writeFile(path.join(first.workspacePath, "CLAUDE.md"), "# Written by activation\n");
+
+    const second = workspace.prepare({
+      evaluationId: "eval-1",
+      role: "candidate",
+      runIndex: 1,
+      target,
+    });
+
+    assert.equal(second.workspacePath, first.workspacePath);
+    assert.equal(fs.existsSync(path.join(second.workspacePath, "AGENTS.md")), false);
+    assert.equal(fs.existsSync(path.join(second.workspacePath, "CLAUDE.md")), false);
+    assert.equal(fs.existsSync(path.join(second.workspacePath, "requirements.md")), true);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("prepare accepts a declared instruction collision", () => {
   const tempRoot = makeTempRoot();
   try {
