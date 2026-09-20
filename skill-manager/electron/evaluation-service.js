@@ -14,6 +14,7 @@ const { costRecordFor } = require("./evaluation-cost");
 const { describeWorkspace, readRunManifest } = require("./evaluation-evidence");
 const { fingerprintValues } = require("./evaluation-fingerprint");
 const { listModelsByAgent } = require("./evaluation-models");
+const { discoverProjectGuidance } = require("./evaluation-project-discovery");
 const { ModelReviewer, ReviewRecord, recordUserReview } = require("./evaluation-review");
 const { writeReport } = require("./evaluation-report-writer");
 
@@ -60,6 +61,10 @@ class EvaluationService {
 
   async availability() {
     return this.runner.availability();
+  }
+
+  discoverProjectGuidance({ projectPath, agent }) {
+    return discoverProjectGuidance({ projectPath, agent, fileSystem: this.fileSystem });
   }
 
   proposePlan({ targetId, scenarioId }) {

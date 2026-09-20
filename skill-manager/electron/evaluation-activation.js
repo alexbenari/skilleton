@@ -100,14 +100,20 @@ class SubjectActivation {
   }
 
   // A referenced document only reaches the run through a pointer, so the
-  // pointer text joins whatever instruction-file subject is also in force.
+  // pointer text joins whatever instruction-file subject is also in force. A
+  // pointer the instruction file already carries is not repeated: guidance
+  // discovered from a real project takes its pointer out of that same file.
   composeInstructionText(guidanceSet) {
     const sections = [];
     for (const subject of guidanceSet.ofKind("instruction-file")) {
       sections.push(this.fileSystem.readFileSync(subject.sourcePath, "utf8").trimEnd());
     }
     for (const subject of guidanceSet.ofKind("referenced-document")) {
-      sections.push(subject.pointerText.trimEnd());
+      const pointer = subject.pointerText.trimEnd();
+      if (sections.some((section) => section.includes(pointer))) {
+        continue;
+      }
+      sections.push(pointer);
     }
     return sections.length === 0 ? null : `${sections.join("\n\n")}\n`;
   }

@@ -10,6 +10,7 @@
     comparisonId: null,
     bundlePath: null,
     unblinded: false,
+    lastProjectPath: null,
   };
 
   const el = (id) => document.getElementById(id);
@@ -87,6 +88,44 @@
       sourcePath: "subjects/repository-instructions.md",
     },
   };
+
+  // Reading a real project beats retyping its guidance: the instruction file
+  // comes first because it is always in context, then the documents it points
+  // at, then the skills that only load when the agent judges them relevant.
+  async function discoverInto(role) {
+    const picked = await guard(
+      () => window.skillManager.pickFolder(state.lastProjectPath || null),
+      "Choosing a project folder"
+    );
+    if (!picked || picked.cancelled || !picked.selectedPath) {
+      return;
+    }
+    state.lastProjectPath = picked.selectedPath;
+    const found = await guard(
+      () =>
+        api.discoverProject({
+          projectPath: picked.selectedPath,
+          agent: el(`evaluation-${role}-agent`).value,
+        }),
+      "Discovering guidance"
+    );
+    if (!found) {
+      return;
+    }
+    el(`evaluation-${role}-guidance`).value = JSON.stringify(found.guidance, null, 2);
+    const counts = found.guidance.reduce((totals, subject) => {
+      totals[subject.kind] = (totals[subject.kind] || 0) + 1;
+      return totals;
+    }, {});
+    log(
+      `${role}: found ${found.guidance.length} subject(s) in ${picked.selectedPath} ` +
+        `(${Object.entries(counts).map(([kind, n]) => `${n} ${kind}`).join(", ") || "none"}). ` +
+        "Delete the ones you do not want."
+    );
+    for (const note of found.notes) {
+      log(`${role}: ${note}`);
+    }
+  }
 
   function appendGuidance(role, kind) {
     const field = el(`evaluation-${role}-guidance`);
@@ -257,6 +296,7 @@
     el(`evaluation-${role}-clear-guidance`).addEventListener("click", () => {
       el(`evaluation-${role}-guidance`).value = "[]";
     });
+    el(`evaluation-${role}-discover`).addEventListener("click", () => discoverInto(role));
   }
 
   el("evaluation-factor").addEventListener("change", () => {

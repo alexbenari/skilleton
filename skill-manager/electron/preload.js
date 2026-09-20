@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld("skillManager", {
     listCatalog: () => invoke("skill-manager:evaluation-list-catalog"),
     availability: () => invoke("skill-manager:evaluation-availability"),
     proposePlan: (input) => invoke("skill-manager:evaluation-propose-plan", input),
+    discoverProject: (input) => invoke("skill-manager:evaluation-discover-project", input),
     saveDefinition: (request) => invoke("skill-manager:evaluation-save-definition", request),
     listArmResults: (filter) => invoke("skill-manager:evaluation-list-arm-results", filter),
     listComparisons: () => invoke("skill-manager:evaluation-list-comparisons"),

@@ -46,6 +46,9 @@ function registerEvaluationIpc(ipcMain, { getService, setService, sendProgress, 
   ipcMain.handle("skill-manager:evaluation-propose-plan", async (_, input) =>
     service().proposePlan(input)
   );
+  ipcMain.handle("skill-manager:evaluation-discover-project", async (_, input) =>
+    service().discoverProjectGuidance(input)
+  );
   ipcMain.handle("skill-manager:evaluation-save-definition", async (_, request) =>
     service().saveDefinition(request).toJSON()
   );

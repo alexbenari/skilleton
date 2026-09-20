@@ -205,6 +205,52 @@ test("an instruction-file subject and a pointer share one instruction file", () 
   }
 });
 
+// Guidance discovered from a real project takes each pointer out of that
+// project's own instruction file, so the two arrive together and the pointer
+// would otherwise be written twice.
+test("a pointer the instruction file already carries is not repeated", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const sourceRoot = path.join(tempRoot, "subjects");
+    const workspacePath = path.join(tempRoot, "workspace");
+    fs.mkdirSync(workspacePath, { recursive: true });
+    const instructionsWithPointer = `# Repository Instructions\n\n${POINTER_TEXT}\nRun the tests.\n`;
+    const guidanceSet = new GuidanceSet([
+      instructionSubject(sourceRoot, instructionsWithPointer),
+      referencedDocumentSubject(sourceRoot),
+    ]);
+
+    new SubjectActivation({ agent: "claude" }).activate(workspacePath, guidanceSet);
+
+    const instructionText = fs.readFileSync(path.join(workspacePath, "CLAUDE.md"), "utf8");
+    const occurrences = instructionText.split("Read the repository design-guidance document").length - 1;
+    assert.equal(occurrences, 1);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("a pointer the instruction file does not carry is still appended", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const sourceRoot = path.join(tempRoot, "subjects");
+    const workspacePath = path.join(tempRoot, "workspace");
+    fs.mkdirSync(workspacePath, { recursive: true });
+    const guidanceSet = new GuidanceSet([
+      instructionSubject(sourceRoot, "# Repository Instructions\n\nRun the tests.\n"),
+      referencedDocumentSubject(sourceRoot),
+    ]);
+
+    new SubjectActivation({ agent: "claude" }).activate(workspacePath, guidanceSet);
+
+    const instructionText = fs.readFileSync(path.join(workspacePath, "CLAUDE.md"), "utf8");
+    assert.equal(instructionText.includes("coding-quality.md"), true);
+    assert.equal(instructionText.includes("Run the tests."), true);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("the reported artifact list names every file activation wrote", () => {
   const tempRoot = makeTempRoot();
   try {

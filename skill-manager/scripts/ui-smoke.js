@@ -28,6 +28,12 @@ async function main() {
   });
   ipcMain.handle("skill-manager:get-bootstrap", async () => ({ initialProject: process.cwd() }));
   ipcMain.handle("skill-manager:get-state", async () => ({ skills: [], libraries: [] }));
+  // Stands in for the folder dialog, pointing at this repository, which has an
+  // instruction file, documents it references, and a project skill root.
+  ipcMain.handle("skill-manager:pick-folder", async () => ({
+    cancelled: false,
+    selectedPath: path.join(__dirname, "..", ".."),
+  }));
 
   const window = new BrowserWindow({
     show: false,
@@ -87,6 +93,12 @@ async function main() {
       report.modelOptionsAfterAgentSwitch = [...el("evaluation-reference-model").options].map((o) => o.value);
       el("evaluation-reference-add-skill").click();
       report.guidanceAfterAdd = el("evaluation-reference-guidance").value;
+      el("evaluation-candidate-discover").click();
+      await new Promise((r) => setTimeout(r, 2500));
+      const discovered = JSON.parse(el("evaluation-candidate-guidance").value || "[]");
+      report.discoveredCount = discovered.length;
+      report.discoveredKindOrder = discovered.map((subject) => subject.kind);
+      report.discoveredNames = discovered.slice(0, 5).map((subject) => subject.name);
       report.availability = el("evaluation-availability").textContent;
       el("evaluation-propose").click();
       await new Promise((r) => setTimeout(r, 1500));
@@ -119,6 +131,9 @@ async function main() {
   console.log("claude efforts:", result.effortOptions.join(", ") || "(none)");
   console.log("models after switching to codex:", result.modelOptionsAfterAgentSwitch.join(", ") || "(none)");
   console.log("guidance after Add skill:", (result.guidanceAfterAdd || "").replace(/\s+/g, " ").slice(0, 120));
+  console.log("discovered from project:", result.discoveredCount, "subjects");
+  console.log("  first five names:", result.discoveredNames.join(", "));
+  console.log("  kind order:", [...new Set(result.discoveredKindOrder)].join(" then "));
   console.log("availability line:", result.availability || "(empty)");
   console.log("proposed plan line:", result.plan || "(empty)");
   console.log("rubric inputs rendered:", result.dimensionInputs);
@@ -145,6 +160,10 @@ async function main() {
     result.modelOptionsAfterAgentSwitch.length > 0 &&
     result.modelOptionsAfterAgentSwitch[0] !== result.modelOptions[0] &&
     result.guidanceAfterAdd.includes('"kind": "skill"') &&
+    result.discoveredCount > 1 &&
+    result.discoveredKindOrder[0] === "instruction-file" &&
+    [...new Set(result.discoveredKindOrder)].join(",") ===
+      "instruction-file,referenced-document,skill" &&
     result.dimensionInputs > 0 &&
     problems.length === 0;
   console.log(ok ? "\nUI SMOKE PASSED" : "\nUI SMOKE FAILED");
