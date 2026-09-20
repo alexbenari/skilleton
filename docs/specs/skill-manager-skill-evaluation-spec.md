@@ -1,7 +1,7 @@
 # Skill Manager Guidance Evaluation Spec
 
 Date: 2026-07-25
-Revised: 2026-09-20
+Revised: 2026-09-20 (isolation limits corrected 2026-09-20)
 
 ## Purpose
 
@@ -483,9 +483,8 @@ Both arms must see the same context apart from the subject. The adapter is
 responsible for ensuring that a run's guidance comes only from the prepared
 workspace:
 
-- the agent home is isolated per evaluation, so user-global skills, user-global
-  instruction files, user rules, plugins, and MCP configuration do not leak
-  into a run,
+- the agent home is isolated per evaluation, which removes the user-global
+  instruction file, user rules, plugins, and MCP configuration from the run,
 - the run workspace has no instruction-file ancestry: no `CLAUDE.md`,
   `CLAUDE.local.md`, `AGENTS.md`, or `AGENTS.override.md` in any directory
   above it, and no enclosing Git repository whose root carries one,
@@ -493,7 +492,8 @@ workspace:
   either initializing the workspace as its own Git root or accepting
   working-directory-only discovery,
 - an `absent` baseline is only valid if the subject is not reachable through
-  any other root, which the two rules above guarantee, and
+  any other root, which the rules above guarantee for instruction files but
+  not for skills; see "Ambient guidance" below, and
 - the isolated home's contents, the workspace location, and the delivered
   instruction bytes, or the explicit decision to inherit the user's home, are
   recorded in the run record and report.
@@ -511,6 +511,36 @@ the repo.
 Leaked user-global guidance is a silent confound: it can make a baseline run
 behave as if the subject were present, which invalidates the comparison without
 producing any error.
+
+### Ambient guidance
+
+Isolating the agent home does not isolate everything, and the spec must not
+claim otherwise.
+
+Codex loads skills from `~/.agents/skills` and `$CODEX_HOME/skills` and keeps
+doing so when `CODEX_HOME`, `USERPROFILE` and `HOME` all point elsewhere and
+`--ignore-user-config` is passed. No configuration key disables it. Measured
+against codex-cli 0.155.0-alpha.9.2 on 2026-09-20: with every relocation in
+place, 41 of the user's global skills still reached the run. The user-global
+`AGENTS.md`, by contrast, is correctly removed by relocating `CODEX_HOME`.
+
+The guidance that reaches a run regardless of isolation is its **ambient
+guidance**. The app cannot remove it, so it must do two things instead:
+
+1. **Refuse a colliding evaluation.** Before the runs, scan the global skill
+   roots. If any skill subject in either arm's guidance set shares a name with
+   an ambient skill, refuse the evaluation and name the skill and the root. An
+   `absent` baseline against a globally installed skill is not a baseline, and
+   the resulting report would look entirely normal.
+2. **Record what remains.** Every run record and report lists the ambient
+   skills that were in scope. They are a constant across both arms rather than
+   a difference between them, which keeps the comparison valid, but a reader
+   judging whether the result generalizes needs to know what else was loaded.
+
+Ambient guidance is a property of the machine, not of the evaluation, so two
+results are only strictly comparable when their ambient sets match. A stored
+arm result therefore carries its ambient skill list, and reusing one whose
+ambient set has since changed is reported the same way as agent-version drift.
 
 For trigger-gated subjects, the run record should also capture an **activation
 signal** with three states: `activated`, `not-activated`, and `undetermined`.
@@ -1377,6 +1407,8 @@ Generated Markdown reports should include:
 - subject activation mechanism per arm, including the workspace paths written,
 - run context isolation per arm: the agent home used, the workspace location,
   and whether any user-global or ancestor guidance was in scope,
+- ambient guidance: the global skill roots read despite isolation, and the
+  skills they contributed to both arms,
 - delivered instruction bytes against each instruction-file subject's size,
   with a truncation flag,
 - activation records per arm, including undetermined signals,
@@ -1483,6 +1515,8 @@ Fail clearly when:
   with a target-provided instruction file,
 - the agent home cannot be isolated, or user-global guidance would reach a run
   that is supposed to be clean,
+- a skill subject under evaluation is also installed in a global skill root
+  that the agent always reads, so no arm could run without it,
 - the prepared workspace has instruction-file ancestry that would leak into
   both arms,
 - an instruction-file subject exceeds the selected agent's instruction budget
@@ -1553,9 +1587,13 @@ Automated tests should prove:
   Codex,
 - an instruction-file subject is written as `CLAUDE.md` on Claude and
   `AGENTS.md` on Codex, as a materialized copy rather than a symlink,
-- both runs use an isolated agent home, and a subject installed in the user's
-  global skill root or named in the user's global instruction file does not
-  reach an `absent` baseline,
+- both runs use an isolated agent home, and a subject named in the user's
+  global instruction file does not reach an `absent` baseline,
+- an evaluation whose skill subject is also installed in an ambient skill root
+  is refused, naming the skill and the root,
+- ambient skills are enumerated through symbolic links, since published skill
+  libraries are commonly directories of links and a plain directory check
+  would see none of them,
 - a prepared workspace has no instruction-file ancestry, including no enclosing
   Git repository carrying one,
 - a fixture containing `AGENTS.override.md` or another colliding instruction

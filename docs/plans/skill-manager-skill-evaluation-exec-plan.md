@@ -26,13 +26,14 @@ Decision Log.
   `docs/specs/skill-manager-skill-evaluation-spec.md`.
 - [x] (2026-09-20) Milestone 1 - catalog, definition model, and store. 38 new
   tests pass; a four-mutation check confirms they fail for the right reason.
-- [ ] Milestone 3 - Workspace preparation, isolation checks, and subject
-  activation. Modules written, tests pending.
-- [ ] Milestone 2 - Agent CLI spike: isolated home, non-interactive run, output
-  parsing, on both Codex and Claude.
-- [ ] Milestone 4 - Agent runner boundary with fake runner and real adapters.
-- [ ] Milestone 5 - Evidence: inventory, check runner, cost record, arm
-  results.
+- [x] (2026-09-20) Milestone 3 - workspace preparation, isolation checks, and
+  subject activation. 27 tests pass; four mutations confirmed the guards.
+- [x] (2026-09-20) Milestone 2 - Agent CLI spike. Findings in
+  `docs/plans/spike-findings.md`; the load-bearing ones re-verified directly
+  and recorded below.
+- [x] (2026-09-20) Milestone 5 - evidence, check runner, cost, arm results.
+- [ ] Milestone 4 - adapters written; tests pending.
+
 - [ ] Milestone 6 - Comparison: compatibility, blinding, reviewers, report.
 - [ ] Milestone 7 - IPC and UI evaluation panel.
 - [ ] Milestone 8 - First fixtures and scenarios, end-to-end run, docs update.
@@ -147,7 +148,83 @@ Unavailable skills or fallbacks:
   `node --test tests/integration/*.test.js`.
   Evidence: `package.json` and `docs/agent-docs/agent-architecture-map.md`.
 
+## Spike outcomes (Milestone 2)
+
+Every claim below was re-verified directly rather than taken from the spike
+agent's report.
+
+- **Claude cannot be spawned with credentials.** There is no
+  `~/.claude/.credentials.json`, no `ANTHROPIC_API_KEY`, and no Credential
+  Manager entry; the desktop app holds auth for its in-process SDK. A spawned
+  `claude.exe` returns "Not logged in" in about 1.4 seconds. The CLI itself
+  works: `claude.exe --version` reports 2.1.275.
+- **Codex ambient skills cannot be isolated.** With `CODEX_HOME`, `USERPROFILE`
+  and `HOME` all relocated and `--ignore-user-config` passed, a run still
+  listed the user's global skills. `~/.agents/skills` holds 41 and
+  `~/.codex/skills` holds 34. No `skills.*` config key exists: five plausible
+  keys were rejected by `--strict-config`. The global `AGENTS.md` IS removed by
+  relocating `CODEX_HOME`.
+- **Skill libraries are directories of symbolic links.** 33 of the 34 entries
+  under `~/.codex/skills` are links. Node's `readdirSync(withFileTypes)`
+  reports a link as a link, so `entry.isDirectory()` is false and a naive scan
+  saw 1 skill instead of 34. This silently defeated the ambient-collision check
+  until `evaluation-fs.js` was added.
+- **`codex exec` has no `--ask-for-approval`** in 0.155.0-alpha.9.2; passing it
+  is a hard arg-parse error. It does have `--ignore-user-config`,
+  `--ephemeral`, `--worktree` and `--dangerously-bypass-approvals-and-sandbox`.
+- **`codex exec` exits 0 even when its tooling failed** and the model answered
+  from nothing. Exit code alone is not a success signal; a `turn.completed`
+  event is.
+- **The Codex Windows sandbox is broken on this machine**, failing with
+  `CreateProcessWithLogonW failed: 1385` under the user's own `CODEX_HOME`, so
+  it is not caused by relocation. Secondary Logon is running, so this is a
+  user-rights policy rather than a stopped service.
+- **Model and reasoning effort appear only in the rollout file**, at
+  `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl`, as `type:"turn_context"`
+  with `payload.model` and `payload.effort`. Stdout carries token usage only,
+  under `turn.completed` → `usage.*`. Codex reports no cost anywhere.
+- **Codex emits no event identifying a skill load or file read**, so skill
+  activation is generally `undetermined` there. Claude's `tool_use` events do
+  name the tool, so the same signal is real on that side. The three-state
+  activation signal is what makes this reportable rather than a false negative.
+- **A bad `ANTHROPIC_API_KEY` makes Claude hang silently** rather than fail
+  fast, so the adapter's own timeout is load-bearing.
+
 ## Decision Log
+
+- Decision: Build both adapters; the user will run `/login` against the
+  standalone Claude CLI to create a credential store.
+  Rationale: The user chose this over a Codex-only v1. Until they do, a Claude
+  run fails with reason `not-logged-in`, which the adapter reports explicitly
+  rather than as a generic failure.
+  Date/Author: 2026-09-20 / user
+
+- Decision: Refuse an evaluation whose skill subject is also installed in an
+  ambient skill root, and record the ambient skills in every run and report.
+  Rationale: The ambient skills cannot be removed, but they are a constant
+  across both arms, so the comparison stays valid. What is not valid is an
+  `absent` baseline against a globally installed subject, and that failure
+  would produce a normal-looking report. Refusing is the only safe option.
+  Chosen by the user over a pre-run relocation step, which would touch their
+  real configuration and leave it moved if a run crashed.
+  Date/Author: 2026-09-20 / user
+
+- Decision: Run task arms with `--dangerously-bypass-approvals-and-sandbox` in
+  an isolated temp workspace; review arms keep `--sandbox read-only`.
+  Rationale: The Windows sandbox fails on this machine regardless of
+  relocation, and fixing it means changing a user-rights policy. The user
+  accepted running unsandboxed. The temp workspace scopes intent, not
+  permission, and that limitation is recorded rather than implied.
+  Date/Author: 2026-09-20 / user
+
+- Decision: Add `evaluation-fs.js` and route every filesystem enumeration
+  through it.
+  Rationale: Skill libraries are directories of symlinks. Five call sites used
+  `entry.isDirectory()` and would have seen nothing: the ambient-collision
+  check, catalog target and scenario discovery, directory fingerprinting, and
+  store listings. Skill installation also switched to `dereference: true` so a
+  linked skill lands in the workspace as real files.
+  Date/Author: 2026-09-20 / Claude
 
 - Decision: Persist evaluation definitions, arm results, comparisons, and
   reports as files under an evaluation root, not in SQLite.

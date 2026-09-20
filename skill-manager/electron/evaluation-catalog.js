@@ -6,6 +6,7 @@ const {
   fingerprintText,
   fingerprintValues,
 } = require("./evaluation-fingerprint");
+const { listDirectoryNames, listFileNames } = require("./evaluation-fs");
 
 class EvaluationCatalogError extends Error {}
 
@@ -214,14 +215,7 @@ class EvaluationCatalog {
   }
 
   directoryNames(parentPath) {
-    if (!this.fileSystem.existsSync(parentPath)) {
-      return [];
-    }
-    return this.fileSystem
-      .readdirSync(parentPath, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
+    return listDirectoryNames(parentPath, this.fileSystem);
   }
 
   listTargets() {
@@ -279,11 +273,9 @@ class EvaluationCatalog {
     const scenariosRoot = this.scenariosPath();
     return this.directoryNames(scenariosRoot).flatMap((targetDirectory) => {
       const targetPath = path.join(scenariosRoot, targetDirectory);
-      return this.fileSystem
-        .readdirSync(targetPath, { withFileTypes: true })
-        .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-        .map((entry) => path.join(targetPath, entry.name))
-        .sort();
+      return listFileNames(targetPath, this.fileSystem)
+        .filter((name) => name.endsWith(".md"))
+        .map((name) => path.join(targetPath, name));
     });
   }
 
@@ -352,11 +344,9 @@ class EvaluationCatalog {
     if (!this.fileSystem.existsSync(subjectsRoot)) {
       return [];
     }
-    return this.fileSystem
-      .readdirSync(subjectsRoot, { withFileTypes: true })
-      .filter((entry) => entry.isFile())
-      .map((entry) => path.join(subjectsRoot, entry.name))
-      .sort();
+    return listFileNames(subjectsRoot, this.fileSystem).map((name) =>
+      path.join(subjectsRoot, name)
+    );
   }
 }
 

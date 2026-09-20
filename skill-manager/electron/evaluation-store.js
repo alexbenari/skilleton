@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { EvaluationDefinition } = require("./evaluation-definition");
+const { listDirectoryNames } = require("./evaluation-fs");
 
 class EvaluationStoreError extends Error {}
 
@@ -115,11 +116,7 @@ class EvaluationStore {
     if (!this.fileSystem.existsSync(root)) {
       return [];
     }
-    return this.fileSystem
-      .readdirSync(root, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort()
+    return listDirectoryNames(root, this.fileSystem)
       .map((id) => ({ id, versions: this.savedVersions(id) }))
       .filter((entry) => entry.versions.length > 0);
   }
@@ -191,11 +188,7 @@ class EvaluationStore {
     if (!this.fileSystem.existsSync(root)) {
       return [];
     }
-    return this.fileSystem
-      .readdirSync(root, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort()
+    return listDirectoryNames(root, this.fileSystem)
       .filter((id) => this.fileSystem.existsSync(path.join(this.armResultDirectory(id), "arm.json")))
       .map((id) => this.loadArmResult(id))
       .filter((stored) =>

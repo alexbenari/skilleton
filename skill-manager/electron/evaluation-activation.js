@@ -84,7 +84,10 @@ class SubjectActivation {
     const relativePath = this.skillRelativePath(subject.name);
     const destination = path.join(workspacePath, ...relativePath.split("/"));
     this.fileSystem.mkdirSync(path.dirname(destination), { recursive: true });
-    this.fileSystem.cpSync(subject.sourcePath, destination, { recursive: true });
+    this.fileSystem.cpSync(subject.sourcePath, destination, {
+      recursive: true,
+      dereference: true,
+    });
     return relativePath;
   }
 

@@ -2,6 +2,8 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
+const { readEntries } = require("./evaluation-fs");
+
 class EvaluationFingerprintError extends Error {}
 
 const BYTE_ORDER_MARK = "﻿";
@@ -50,14 +52,12 @@ function fingerprintFile(filePath, fileSystem = fs) {
 function listFilesRecursively(rootPath, fileSystem) {
   const found = [];
   const walk = (currentPath, relativePrefix) => {
-    const entries = fileSystem.readdirSync(currentPath, { withFileTypes: true });
-    for (const entry of entries) {
+    for (const entry of readEntries(currentPath, fileSystem)) {
       const relativePath = relativePrefix ? `${relativePrefix}/${entry.name}` : entry.name;
-      const absolutePath = path.join(currentPath, entry.name);
-      if (entry.isDirectory()) {
-        walk(absolutePath, relativePath);
-      } else if (entry.isFile()) {
-        found.push({ relativePath, absolutePath });
+      if (entry.kind === "directory") {
+        walk(entry.path, relativePath);
+      } else if (entry.kind === "file") {
+        found.push({ relativePath, absolutePath: entry.path });
       }
     }
   };
