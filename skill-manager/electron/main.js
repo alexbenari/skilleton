@@ -3,7 +3,7 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 
 const { ActiveSkillLibrary } = require("./active-skill-library");
 const { AppConfig } = require("./app-config");
-const { createEvaluationService } = require("./evaluation-wiring");
+const { createEvaluationService, registerEvaluationIpc } = require("./evaluation-wiring");
 const { createDBAdapter } = require("./skill-library-db");
 const { SkillDiscovery } = require("./skill-discovery");
 const { SkillInstaller } = require("./skill-installer");
@@ -285,59 +285,19 @@ app.whenReady().then(() => {
     return { ok: true };
   });
 
-  ipcMain.handle("skill-manager:evaluation-list-catalog", async () =>
-    evaluationService.listCatalog()
-  );
-  ipcMain.handle("skill-manager:evaluation-availability", async () =>
-    evaluationService.availability()
-  );
-  ipcMain.handle("skill-manager:evaluation-propose-plan", async (_, input) =>
-    evaluationService.proposePlan(input)
-  );
-  ipcMain.handle("skill-manager:evaluation-save-definition", async (_, request) =>
-    evaluationService.saveDefinition(request).toJSON()
-  );
-  ipcMain.handle("skill-manager:evaluation-list-arm-results", async (_, filter) =>
-    evaluationService.store.listArmResults(filter || {})
-  );
-  ipcMain.handle("skill-manager:evaluation-list-comparisons", async () =>
-    evaluationService.store.listComparisons()
-  );
-  ipcMain.handle("skill-manager:evaluation-start", async (_, definitionId, options) => {
-    const result = await evaluationService.startEvaluation(definitionId, {
-      ...(options || {}),
-      onProgress: sendEvaluationProgress,
-    });
-    return {
-      comparisonId: result.comparisonId,
-      bundlePath: result.bundle.rootPath,
-      variedFactor: result.comparison.variedFactor,
-      drift: result.comparison.drift,
-    };
-  });
-  ipcMain.handle("skill-manager:evaluation-cancel", async (_, definitionId) =>
-    evaluationService.cancel(definitionId)
-  );
-  ipcMain.handle("skill-manager:evaluation-submit-user-review", async (_, comparisonId, input) =>
-    evaluationService.addUserReview(comparisonId, input)
-  );
-  ipcMain.handle("skill-manager:evaluation-open-report", async (_, comparisonId) => {
-    const reportPath = evaluationService.store.reportPath(comparisonId);
-    await shell.openPath(reportPath);
-    return { reportPath };
-  });
-  ipcMain.handle("skill-manager:evaluation-open-path", async (_, targetPath) => {
-    await shell.openPath(targetPath);
-    return { targetPath };
-  });
-  ipcMain.handle("skill-manager:evaluation-set-cli-paths", async (_, paths) => {
-    const updated = appConfig.setEvaluationCliPaths(paths || {});
-    evaluationService = createEvaluationService({
-      appConfig: updated,
-      userDataPath: app.getPath("userData"),
-      tempRootPath: app.getPath("temp"),
-    });
-    return updated.evaluation;
+  registerEvaluationIpc(ipcMain, {
+    getService: () => evaluationService,
+    setService: (paths) => {
+      const updated = appConfig.setEvaluationCliPaths(paths || {});
+      evaluationService = createEvaluationService({
+        appConfig: updated,
+        userDataPath: app.getPath("userData"),
+        tempRootPath: app.getPath("temp"),
+      });
+      return updated.evaluation;
+    },
+    sendProgress: sendEvaluationProgress,
+    onOpenPath: (targetPath) => shell.openPath(targetPath),
   });
 
   createWindow();

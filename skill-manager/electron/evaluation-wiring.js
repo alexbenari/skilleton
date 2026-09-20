@@ -37,8 +37,57 @@ function createEvaluationService({ appConfig = null, userDataPath = null, tempRo
   });
 }
 
+// Registered from one place so the Electron entry point and the UI smoke
+// harness cannot drift apart on channel names or payload shapes.
+function registerEvaluationIpc(ipcMain, { getService, setService, sendProgress, onOpenPath }) {
+  const service = () => getService();
+  ipcMain.handle("skill-manager:evaluation-list-catalog", async () => service().listCatalog());
+  ipcMain.handle("skill-manager:evaluation-availability", async () => service().availability());
+  ipcMain.handle("skill-manager:evaluation-propose-plan", async (_, input) =>
+    service().proposePlan(input)
+  );
+  ipcMain.handle("skill-manager:evaluation-save-definition", async (_, request) =>
+    service().saveDefinition(request).toJSON()
+  );
+  ipcMain.handle("skill-manager:evaluation-list-arm-results", async (_, filter) =>
+    service().store.listArmResults(filter || {})
+  );
+  ipcMain.handle("skill-manager:evaluation-list-comparisons", async () =>
+    service().store.listComparisons()
+  );
+  ipcMain.handle("skill-manager:evaluation-start", async (_, definitionId, options) => {
+    const result = await service().startEvaluation(definitionId, {
+      ...(options || {}),
+      onProgress: sendProgress,
+    });
+    return {
+      comparisonId: result.comparisonId,
+      bundlePath: result.bundle.rootPath,
+      variedFactor: result.comparison.variedFactor,
+      drift: result.comparison.drift,
+    };
+  });
+  ipcMain.handle("skill-manager:evaluation-cancel", async (_, definitionId) =>
+    service().cancel(definitionId)
+  );
+  ipcMain.handle("skill-manager:evaluation-submit-user-review", async (_, comparisonId, input) =>
+    service().addUserReview(comparisonId, input)
+  );
+  ipcMain.handle("skill-manager:evaluation-open-report", async (_, comparisonId) => {
+    const reportPath = service().store.reportPath(comparisonId);
+    await onOpenPath(reportPath);
+    return { reportPath };
+  });
+  ipcMain.handle("skill-manager:evaluation-open-path", async (_, targetPath) => {
+    await onOpenPath(targetPath);
+    return { targetPath };
+  });
+  ipcMain.handle("skill-manager:evaluation-set-cli-paths", async (_, paths) => setService(paths));
+}
+
 module.exports = {
   createEvaluationService,
   buildAdapters,
+  registerEvaluationIpc,
   REVIEW_SANDBOX_ENV_VAR,
 };
