@@ -198,7 +198,10 @@ class EvaluationCatalog {
     if (!rootPath) {
       throw new EvaluationCatalogError("rootPath is required.");
     }
-    this.rootPath = rootPath;
+    // Absolute, because a check command runs with the arm's workspace as its
+    // working directory: a relative checks path would resolve inside the
+    // workspace and the check would not be found.
+    this.rootPath = path.resolve(rootPath);
     this.fileSystem = fileSystem;
   }
 

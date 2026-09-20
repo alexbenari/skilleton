@@ -31,6 +31,23 @@ const ENTRY_POINT_BASENAMES = [
   "cli.js",
   "cli.ts",
 ];
+const TEST_CAPABLE_EXTENSIONS = [
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".ts",
+  ".tsx",
+  ".py",
+  ".rb",
+  ".go",
+  ".rs",
+  ".java",
+  ".cs",
+  ".kt",
+  ".swift",
+  ".php",
+];
 const DOCUMENT_EXTENSIONS = [".md", ".rst", ".txt", ".adoc"];
 const CONFIG_EXTENSIONS = [".json", ".toml", ".yaml", ".yml", ".ini", ".cfg"];
 
@@ -38,13 +55,22 @@ function toPosix(relativePath) {
   return relativePath.split(path.sep).join("/");
 }
 
+// "spec" means a test file in source trees and a specification document
+// everywhere else, so the marker only counts for code. Without this,
+// docs/specs/report-builder-spec.md is inventoried as a test.
 function looksLikeTest(relativePath) {
-  const posix = relativePath.toLowerCase();
-  const segments = posix.split("/");
-  if (segments.some((segment) => segment === "test" || segment === "tests" || segment === "spec")) {
+  const segments = relativePath.toLowerCase().split("/");
+  const base = segments[segments.length - 1];
+  const isCode = TEST_CAPABLE_EXTENSIONS.includes(path.posix.extname(base));
+  if (segments.some((segment) => segment === "test" || segment === "tests")) {
     return true;
   }
-  const base = segments[segments.length - 1];
+  if (!isCode) {
+    return false;
+  }
+  if (segments.some((segment) => segment === "spec" || segment === "specs")) {
+    return true;
+  }
   return /(^|[._-])(test|spec)([._-]|$)/.test(base);
 }
 

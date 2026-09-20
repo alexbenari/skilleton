@@ -6,8 +6,11 @@ class EvaluationCheckError extends Error {}
 const CHECK_STATUSES = ["pass", "fail", "error"];
 const DEFAULT_SHELL = process.platform === "win32" ? "cmd" : "sh";
 
+// cmd.exe is spawned verbatim: Node escapes an embedded quote as \" when it
+// builds a Windows command line, and cmd.exe does not understand that, so a
+// quoted path in a check command would reach the program mangled.
 const SHELL_INVOCATIONS = {
-  cmd: (command) => ({ file: "cmd.exe", args: ["/d", "/s", "/c", command] }),
+  cmd: (command) => ({ file: "cmd.exe", args: ["/d", "/s", "/c", command], verbatim: true }),
   powershell: (command) => ({
     file: "powershell.exe",
     args: ["-NoProfile", "-NonInteractive", "-Command", command],
@@ -171,6 +174,7 @@ class CheckRunner {
     const outcome = await this.execute(invocation.file, invocation.args, {
       cwd: context.workspacePath,
       timeoutMs: check.timeoutSeconds * 1000,
+      verbatim: Boolean(invocation.verbatim),
       env: {
         ...process.env,
         EVALUATION_WORKSPACE: context.workspacePath,
@@ -220,7 +224,7 @@ class CheckRunner {
     });
   }
 
-  execute(file, args, { cwd, timeoutMs, env }) {
+  execute(file, args, { cwd, timeoutMs, env, verbatim = false }) {
     return new Promise((resolve) => {
       let stdout = "";
       let stderr = "";
@@ -228,7 +232,12 @@ class CheckRunner {
       let timedOut = false;
       let child;
       try {
-        child = this.spawn(file, args, { cwd, env, windowsHide: true });
+        child = this.spawn(file, args, {
+          cwd,
+          env,
+          windowsHide: true,
+          windowsVerbatimArguments: verbatim,
+        });
       } catch (error) {
         resolve({ stdout: "", stderr: "", exitCode: null, spawnError: error.message });
         return;

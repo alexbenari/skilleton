@@ -18,6 +18,8 @@ Commands:
   run <definitionId>          Run both arms and build the blinded review bundle.
   review <comparisonId>       Record a user verdict from --input <file.json>.
   report <comparisonId>       Print the path of a comparison's report.
+  model-review <comparisonId> Have the evaluation model review the bundle.
+                              Needs --agent, --model and --effort.
 
 Options:
   --catalog <dir>   Catalog root (default: skill-manager/evaluations)
@@ -174,6 +176,24 @@ async function commandReview(positional, options) {
   process.stdout.write(`Report written to ${result.reportPath}\n`);
 }
 
+async function commandModelReview(positional, options) {
+  const [, comparisonId] = positional;
+  if (!comparisonId) {
+    throw new Error("model-review requires a comparison id");
+  }
+  const { ArmConfiguration, GuidanceSet } = require("../electron/evaluation-definition");
+  const service = buildService(options);
+  const arm = new ArmConfiguration({
+    agent: options.agent || "codex",
+    model: options.model || "gpt-5.6-luna",
+    effort: options.effort || "medium",
+    guidanceSet: new GuidanceSet([]),
+  });
+  process.stdout.write(`Reviewing ${comparisonId} with ${arm.describe()}...\n`);
+  const result = await service.addModelReview(comparisonId, { arm });
+  process.stdout.write(`Report written to ${result.reportPath}\n`);
+}
+
 function commandReport(positional, options) {
   const [, comparisonId] = positional;
   if (!comparisonId) {
@@ -200,6 +220,8 @@ function main(argv) {
       return commandRun(positional, options);
     case "review":
       return commandReview(positional, options);
+    case "model-review":
+      return commandModelReview(positional, options);
     case "report":
       commandReport(positional, options);
       return 0;
@@ -209,9 +231,12 @@ function main(argv) {
   }
 }
 
-try {
-  process.exitCode = main(process.argv.slice(2));
-} catch (error) {
-  process.stderr.write(`${error.name}: ${error.message}\n`);
-  process.exitCode = 1;
-}
+Promise.resolve()
+  .then(() => main(process.argv.slice(2)))
+  .then((code) => {
+    process.exitCode = code || 0;
+  })
+  .catch((error) => {
+    process.stderr.write(`${error.name}: ${error.message}\n`);
+    process.exitCode = 1;
+  });
