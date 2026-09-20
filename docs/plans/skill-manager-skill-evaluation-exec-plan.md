@@ -32,11 +32,12 @@ Decision Log.
   `docs/plans/spike-findings.md`; the load-bearing ones re-verified directly
   and recorded below.
 - [x] (2026-09-20) Milestone 5 - evidence, check runner, cost, arm results.
-- [ ] Milestone 4 - adapters written; tests pending.
+- [x] (2026-09-20) Milestone 4 - Codex and Claude adapters.
+- [x] (2026-09-20) Milestone 6 - comparison, blinding, reviewers, report.
+- [x] (2026-09-20) Milestone 7 - service, IPC, and UI evaluation panel.
+- [x] (2026-09-20) Milestone 8 - fixtures, end-to-end run, architecture map.
 
-- [ ] Milestone 6 - Comparison: compatibility, blinding, reviewers, report.
-- [ ] Milestone 7 - IPC and UI evaluation panel.
-- [ ] Milestone 8 - First fixtures and scenarios, end-to-end run, docs update.
+
 
 ## Skill Gates
 
@@ -322,7 +323,58 @@ agent's report.
 
 ## Outcomes & Retrospective
 
-Not started.
+Shipped. The loop runs end to end: two paired Codex runs from one definition,
+evidence and checks collected per run, a blinded review bundle, a model review,
+and a written report. 252 tests pass.
+
+Evidence: commits f087900 through be5ba6d. The report from the proving run is
+at `evaluations-data/comparisons/plans-format-absent-vs-present-v1-1789921579344/report.md`.
+
+What the layers caught, in order, is the retrospective's main point.
+
+Three bugs came from the test passes, each reported as a disagreement rather
+than quietly fixed:
+
+- `CheckRunner` treated the shell invocation factory as an already-built
+  object, so no check could ever spawn.
+- A synchronous spawn failure reached `finish()` before the timer const was
+  initialized, so every wrong CLI path rejected with a ReferenceError instead
+  of reporting a failed run.
+- The review bundle carried `assignment.json`, and a model reviewer is handed
+  the bundle root as its working directory, so the sealed mapping was a file it
+  could read.
+
+Six more only appeared when real agent output flowed through, and every one of
+them sat in code the unit tests already covered:
+
+- The ambient-skill scan saw 1 skill instead of 34, because skill libraries are
+  directories of symlinks and `isDirectory()` is false for those. This silently
+  defeated the safeguard the user had just chosen.
+- Check commands could not reference a quoted path on Windows.
+- A produced specification document was inventoried as a test file.
+- The instruction-ancestry guard rejected the workspace's own activation
+  artifacts, so every second run at the same path failed.
+- The review bundle copied each arm's activation artifacts, so the guided arm
+  had extra files and the arms were trivially distinguishable. Blinding, the
+  feature's central claim, did not hold.
+- The model review could never return a verdict, because no `lastMessagePath`
+  was ever passed to the adapter.
+
+Two of those were caught only because a mutation check showed a test passing
+for the wrong reason. The ancestry fix in particular had two independent
+causes, and the first regression test passed with either one applied.
+
+Follow-up work, none of it blocking:
+
+- The requirements document in `fixtures/docgen-requirements/content/` is a
+  placeholder. Replace it with the real one before acting on any result.
+- Stage 2 (frozen plan to code) has no fixture yet.
+- The Claude adapter is written and unit-tested but has never made a real run,
+  because the spawned CLI has no credentials until the user runs `/login`.
+- A `user` reviewer role works through the UI and the command line, but the
+  matched-pair presentation for repetition counts above one is not built.
+- Read-only review needs `SKILL_MANAGER_CODEX_REVIEW_SANDBOX=bypass` on this
+  machine, which trades enforcement for the after-the-fact bundle check.
 
 ## Context and orientation
 
