@@ -25,17 +25,84 @@
     el(id).textContent = text;
   }
 
-  function fillSelect(select, values, selected) {
+  const ARM_ROLES = ["reference", "candidate"];
+  const DEFAULT_AGENT = "claude";
+
+  function fillSelect(select, entries, selected) {
+    const options = entries.map((entry) =>
+      typeof entry === "string" ? { value: entry, label: entry } : entry
+    );
     select.innerHTML = "";
-    for (const value of values) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = value;
-      select.appendChild(option);
+    for (const option of options) {
+      const element = document.createElement("option");
+      element.value = option.value;
+      element.textContent = option.label;
+      select.appendChild(element);
     }
+    const values = options.map((option) => option.value);
     if (selected && values.includes(selected)) {
       select.value = selected;
     }
+  }
+
+  function modelsFor(agent) {
+    return (state.catalog && state.catalog.modelsByAgent && state.catalog.modelsByAgent[agent]) || [];
+  }
+
+  function refreshEffortOptions(role) {
+    const models = modelsFor(el(`evaluation-${role}-agent`).value);
+    const chosen = models.find((model) => model.id === el(`evaluation-${role}-model`).value);
+    const efforts = chosen && chosen.efforts.length > 0 ? chosen.efforts : ["low", "medium", "high"];
+    const preferred = efforts.includes("high") ? "high" : efforts[efforts.length - 1];
+    fillSelect(el(`evaluation-${role}-effort`), efforts, preferred);
+  }
+
+  function refreshModelOptions(role) {
+    const models = modelsFor(el(`evaluation-${role}-agent`).value);
+    fillSelect(
+      el(`evaluation-${role}-model`),
+      models.map((model) => ({ value: model.id, label: `${model.name} (${model.id})` }))
+    );
+    refreshEffortOptions(role);
+  }
+
+  // Templates rather than free text: the shape is exact, and the only thing
+  // left to fill in is which file the subject actually is.
+  const GUIDANCE_TEMPLATES = {
+    skill: {
+      kind: "skill",
+      name: "writing-clean-code",
+      sourcePath: "<absolute path to the skill directory>",
+    },
+    "referenced-document": {
+      kind: "referenced-document",
+      name: "coding-quality",
+      sourcePath: "subjects/coding-quality-v1.md",
+      pointerFile: "subjects/pointer-coding-quality.md",
+      workspacePath: "coding-quality.md",
+    },
+    "instruction-file": {
+      kind: "instruction-file",
+      name: "repository-instructions",
+      sourcePath: "subjects/repository-instructions.md",
+    },
+  };
+
+  function appendGuidance(role, kind) {
+    const field = el(`evaluation-${role}-guidance`);
+    let current = [];
+    try {
+      current = JSON.parse(field.value.trim() || "[]");
+    } catch {
+      log(`The ${role} guidance set is not valid JSON, so nothing was added.`);
+      return;
+    }
+    if (!Array.isArray(current)) {
+      log(`The ${role} guidance set must be a JSON array.`);
+      return;
+    }
+    current.push(GUIDANCE_TEMPLATES[kind]);
+    field.value = JSON.stringify(current, null, 2);
   }
 
   function scenariosForTarget(targetId) {
@@ -107,8 +174,9 @@
       state.catalog.targets.map((target) => target.id)
     );
     refreshScenarioOptions();
-    for (const id of ["evaluation-reference-agent", "evaluation-candidate-agent"]) {
-      fillSelect(el(id), state.catalog.agents, "codex");
+    for (const role of ARM_ROLES) {
+      fillSelect(el(`evaluation-${role}-agent`), state.catalog.agents, DEFAULT_AGENT);
+      refreshModelOptions(role);
     }
     const availability = await api.availability();
     const summary = Object.entries(availability)
@@ -118,9 +186,11 @@
       .join("  |  ");
     setMeta("evaluation-availability", summary);
     for (const [agent, status] of Object.entries(availability)) {
-      if (!status.available) {
-        log(`${agent} is unavailable: ${status.reason}`);
-      }
+      log(
+        status.available
+          ? `${agent} ready: ${status.version} at ${status.cliPath}`
+          : `${agent} is unavailable (${status.cliPath}): ${status.reason}`
+      );
     }
   }
 
@@ -173,6 +243,21 @@
   });
 
   el("evaluation-target").addEventListener("change", refreshScenarioOptions);
+
+  for (const role of ARM_ROLES) {
+    el(`evaluation-${role}-agent`).addEventListener("change", () => refreshModelOptions(role));
+    el(`evaluation-${role}-model`).addEventListener("change", () => refreshEffortOptions(role));
+    el(`evaluation-${role}-add-skill`).addEventListener("click", () => appendGuidance(role, "skill"));
+    el(`evaluation-${role}-add-document`).addEventListener("click", () =>
+      appendGuidance(role, "referenced-document")
+    );
+    el(`evaluation-${role}-add-instructions`).addEventListener("click", () =>
+      appendGuidance(role, "instruction-file")
+    );
+    el(`evaluation-${role}-clear-guidance`).addEventListener("click", () => {
+      el(`evaluation-${role}-guidance`).value = "[]";
+    });
+  }
 
   el("evaluation-factor").addEventListener("change", () => {
     el("evaluation-mode-wrap").hidden = el("evaluation-factor").value !== "guidance";

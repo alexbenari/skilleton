@@ -78,6 +78,15 @@ async function main() {
       report.targetOptions = [...el("evaluation-target").options].map((o) => o.value);
       report.scenarioOptions = [...el("evaluation-scenario").options].map((o) => o.value);
       report.agentOptions = [...el("evaluation-reference-agent").options].map((o) => o.value);
+      report.agentDefault = el("evaluation-reference-agent").value;
+      report.modelOptions = [...el("evaluation-reference-model").options].map((o) => o.value);
+      report.effortOptions = [...el("evaluation-reference-effort").options].map((o) => o.value);
+      el("evaluation-reference-agent").value = "codex";
+      el("evaluation-reference-agent").dispatchEvent(new Event("change"));
+      await new Promise((r) => setTimeout(r, 200));
+      report.modelOptionsAfterAgentSwitch = [...el("evaluation-reference-model").options].map((o) => o.value);
+      el("evaluation-reference-add-skill").click();
+      report.guidanceAfterAdd = el("evaluation-reference-guidance").value;
       report.availability = el("evaluation-availability").textContent;
       el("evaluation-propose").click();
       await new Promise((r) => setTimeout(r, 1500));
@@ -105,7 +114,11 @@ async function main() {
   );
   console.log("targets in dropdown:", result.targetOptions.join(", ") || "(none)");
   console.log("scenarios in dropdown:", result.scenarioOptions.join(", ") || "(none)");
-  console.log("agents in dropdown:", result.agentOptions.join(", ") || "(none)");
+  console.log("agents in dropdown:", result.agentOptions.join(", ") || "(none)", "| default:", result.agentDefault);
+  console.log("claude models:", result.modelOptions.join(", ") || "(none)");
+  console.log("claude efforts:", result.effortOptions.join(", ") || "(none)");
+  console.log("models after switching to codex:", result.modelOptionsAfterAgentSwitch.join(", ") || "(none)");
+  console.log("guidance after Add skill:", (result.guidanceAfterAdd || "").replace(/\s+/g, " ").slice(0, 120));
   console.log("availability line:", result.availability || "(empty)");
   console.log("proposed plan line:", result.plan || "(empty)");
   console.log("rubric inputs rendered:", result.dimensionInputs);
@@ -126,6 +139,12 @@ async function main() {
     result.targetOptions.length > 0 &&
     result.scenarioOptions.length > 0 &&
     result.agentOptions.length > 0 &&
+    result.agentDefault === "claude" &&
+    result.modelOptions.length > 0 &&
+    result.effortOptions.length > 0 &&
+    result.modelOptionsAfterAgentSwitch.length > 0 &&
+    result.modelOptionsAfterAgentSwitch[0] !== result.modelOptions[0] &&
+    result.guidanceAfterAdd.includes('"kind": "skill"') &&
     result.dimensionInputs > 0 &&
     problems.length === 0;
   console.log(ok ? "\nUI SMOKE PASSED" : "\nUI SMOKE FAILED");

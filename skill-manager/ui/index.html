@@ -736,6 +736,18 @@
         white-space: pre-wrap;
         margin-top: 10px;
       }
+      .guidance-help {
+        margin: 2px 0 6px;
+        line-height: 1.45;
+      }
+      .guidance-help code {
+        background: rgba(0, 0, 0, 0.25);
+        padding: 0 4px;
+        border-radius: 3px;
+      }
+      #evaluation-panel select {
+        min-width: 150px;
+      }
       #evaluation-dimensions label {
         display: block;
         margin-top: 8px;
@@ -852,22 +864,44 @@
             <label for="evaluation-reference-agent">Agent / model / effort</label>
             <div class="row">
               <select id="evaluation-reference-agent"></select>
-              <input id="evaluation-reference-model" type="text" placeholder="model">
-              <input id="evaluation-reference-effort" type="text" placeholder="effort" value="high">
+              <select id="evaluation-reference-model"></select>
+              <select id="evaluation-reference-effort"></select>
             </div>
-            <label for="evaluation-reference-guidance">Guidance set (JSON array)</label>
-            <textarea id="evaluation-reference-guidance" rows="6">[]</textarea>
+            <label for="evaluation-reference-guidance">Guidance set</label>
+            <div class="meta guidance-help">
+              Everything this arm has in force: skills, an instruction file, and
+              documents those point at. Leave it as <code>[]</code> for an arm with
+              no guidance. One entry per subject.
+            </div>
+            <textarea id="evaluation-reference-guidance" rows="6" spellcheck="false">[]</textarea>
+            <div class="row wrap">
+              <button id="evaluation-reference-add-skill" type="button" class="secondary">Add skill</button>
+              <button id="evaluation-reference-add-document" type="button" class="secondary">Add referenced doc</button>
+              <button id="evaluation-reference-add-instructions" type="button" class="secondary">Add instruction file</button>
+              <button id="evaluation-reference-clear-guidance" type="button" class="secondary">Clear</button>
+            </div>
           </div>
           <div class="evaluation-arm">
             <h3>Candidate arm</h3>
             <label for="evaluation-candidate-agent">Agent / model / effort</label>
             <div class="row">
               <select id="evaluation-candidate-agent"></select>
-              <input id="evaluation-candidate-model" type="text" placeholder="model">
-              <input id="evaluation-candidate-effort" type="text" placeholder="effort" value="high">
+              <select id="evaluation-candidate-model"></select>
+              <select id="evaluation-candidate-effort"></select>
             </div>
-            <label for="evaluation-candidate-guidance">Guidance set (JSON array)</label>
-            <textarea id="evaluation-candidate-guidance" rows="6">[]</textarea>
+            <label for="evaluation-candidate-guidance">Guidance set</label>
+            <div class="meta guidance-help">
+              Everything this arm has in force: skills, an instruction file, and
+              documents those point at. Leave it as <code>[]</code> for an arm with
+              no guidance. One entry per subject.
+            </div>
+            <textarea id="evaluation-candidate-guidance" rows="6" spellcheck="false">[]</textarea>
+            <div class="row wrap">
+              <button id="evaluation-candidate-add-skill" type="button" class="secondary">Add skill</button>
+              <button id="evaluation-candidate-add-document" type="button" class="secondary">Add referenced doc</button>
+              <button id="evaluation-candidate-add-instructions" type="button" class="secondary">Add instruction file</button>
+              <button id="evaluation-candidate-clear-guidance" type="button" class="secondary">Clear</button>
+            </div>
           </div>
         </div>
 

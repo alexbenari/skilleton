@@ -162,13 +162,16 @@ class AgentRunner {
     return this.adapterFor(agent).version();
   }
 
+  // The resolved path travels with the verdict, because "unavailable" is almost
+  // always a path problem and the path is the first thing worth seeing.
   async availability() {
     const entries = await Promise.all(
       this.supportedAgents().map(async (agent) => {
+        const cliPath = this.adapters[agent].cliPath || null;
         try {
-          return [agent, { available: true, version: await this.version(agent) }];
+          return [agent, { available: true, version: await this.version(agent), cliPath }];
         } catch (error) {
-          return [agent, { available: false, reason: error.message }];
+          return [agent, { available: false, reason: error.message, cliPath }];
         }
       })
     );

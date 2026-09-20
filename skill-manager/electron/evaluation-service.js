@@ -13,6 +13,7 @@ const {
 const { costRecordFor } = require("./evaluation-cost");
 const { describeWorkspace, readRunManifest } = require("./evaluation-evidence");
 const { fingerprintValues } = require("./evaluation-fingerprint");
+const { listModelsByAgent } = require("./evaluation-models");
 const { ModelReviewer, ReviewRecord, recordUserReview } = require("./evaluation-review");
 const { writeReport } = require("./evaluation-report-writer");
 
@@ -46,12 +47,14 @@ class EvaluationService {
   }
 
   listCatalog() {
+    const agents = this.runner.supportedAgents();
     return {
       targets: this.catalog.listTargets().map((target) => target.toJSON()),
       scenarios: this.catalog.listScenarios().map((scenario) => scenario.toJSON()),
       subjects: this.catalog.listSubjectFiles(),
       definitions: this.store.listDefinitions(),
-      agents: this.runner.supportedAgents(),
+      agents,
+      modelsByAgent: listModelsByAgent({ agents, fileSystem: this.fileSystem }),
     };
   }
 

@@ -118,19 +118,25 @@ test("a failing run keeps its exit code and reason as evidence", async () => {
   assert.equal(record.failureReason, "auth expired");
 });
 
-test("availability reports which adapters can be reached and why one cannot", async () => {
-  const runner = new AgentRunner({
-    adapters: {
-      codex: new FakeAgentAdapter({ agent: "codex", script: { version: "codex 1.2.3" } }),
-      claude: new FakeAgentAdapter({ agent: "claude", script: { versionFails: true } }),
-    },
-  });
+// The resolved path travels with the verdict either way: "unavailable" is
+// almost always a path problem, and the path is the first thing worth seeing.
+test("availability reports which adapters can be reached, why one cannot, and the path each used", async () => {
+  const codexAdapter = new FakeAgentAdapter({ agent: "codex", script: { version: "codex 1.2.3" } });
+  codexAdapter.cliPath = "D:\\tools\\codex.exe";
+  const claudeAdapter = new FakeAgentAdapter({ agent: "claude", script: { versionFails: true } });
+  claudeAdapter.cliPath = "D:\\tools\\claude.exe";
+  const runner = new AgentRunner({ adapters: { codex: codexAdapter, claude: claudeAdapter } });
 
   const availability = await runner.availability();
 
-  assert.deepEqual(availability.codex, { available: true, version: "codex 1.2.3" });
+  assert.deepEqual(availability.codex, {
+    available: true,
+    version: "codex 1.2.3",
+    cliPath: "D:\\tools\\codex.exe",
+  });
   assert.equal(availability.claude.available, false);
   assert.equal(availability.claude.reason.includes("not installed"), true);
+  assert.equal(availability.claude.cliPath, "D:\\tools\\claude.exe");
 });
 
 test("a run reports an activation signal for every trigger-gated subject in force", async () => {
