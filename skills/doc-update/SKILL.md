@@ -98,6 +98,21 @@ Do not silently rewrite axioms to match an unapproved implementation change.
    - update it,
    - mark it obsolete and point back to the canonical map,
    - remove it and repair inbound references.
-6. **No volatile status.** Do not state git, PR, branch or deploy status ("pending merge", "not
+6. **No volatile numbers.** A number belongs in these docs only if an agent would act
+   differently because of it:
+   - no current package versions or plain consumer pins — name the package, its publisher and
+     its consumers, and let the project file say the version; keep a version only when it
+     states a rule or a hazard (pins that must move together, a pin held far behind, the
+     release that introduced a behaviour an agent relies on);
+   - no counts of tests, commits, files, lines, rows or projects — name what exists instead;
+   - no "the latest baseline is …" or "the tip is …" — state the rule (the newest folder is the
+     baseline) and name a branch only where the branch itself matters;
+   - no `file:line` — cite the symbol (method, field, config key); keep a line number only
+     where the line itself is the point and has no symbol;
+   - keep calibrated thresholds, target frameworks and support dates, commit hashes as
+     provenance, and dated evidence ("0.7449 → 0.7526 on dataset X") verbatim;
+   - a frozen repo or branch (no commits in years) is exempt: its numbers cannot drift, and its
+     pins are what a rebuild needs.
+7. **No volatile status.** Do not state git, PR, branch or deploy status ("pending merge", "not
    yet pushed", "still open"). Record a dependency as a condition plus how to check it:
    "requires PR #123 merged (`gh pr view 123 --json state`)".
