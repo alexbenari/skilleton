@@ -98,3 +98,6 @@ Do not silently rewrite axioms to match an unapproved implementation change.
    - update it,
    - mark it obsolete and point back to the canonical map,
    - remove it and repair inbound references.
+6. **No volatile status.** Do not state git, PR, branch or deploy status ("pending merge", "not
+   yet pushed", "still open"). Record a dependency as a condition plus how to check it:
+   "requires PR #123 merged (`gh pr view 123 --json state`)".
