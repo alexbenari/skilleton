@@ -8,7 +8,7 @@ When writing an ExecPlan, follow PLANS.md exactly. If you do not know it by hear
 
 When writing an ExecPlan, use applicable workflow and design skills before the plan records design decisions. Record the relevant skills or equivalent guidance in the plan's `Skill Gates` section.
 
-When executing an ExecPlan, do not ask the user for "next steps." Proceed to the next milestone. Keep all sections current, split or add steps at each stopping point, and record what changed and why.
+When executing an ExecPlan, do not ask the user for "next steps." Proceed to the next milestone. Keep all sections current, split or add steps at each stopping point, and record what changed and why. A superseded decision leaves the `Decision Log` and becomes a line in `Rejected alternatives`.
 
 When executing an ExecPlan, treat each implementation step as triggering the same skills it would trigger if requested directly; apply them before the work is performed. Keep the `Skill Gates`, `Progress`, and `Decision Log` sections current as skills are used and decisions change.
 
@@ -35,6 +35,14 @@ An ExecPlan should be one Markdown file. If the plan is inside another Markdown 
 
 Use clear headings, short paragraphs, and checklists only where required.
 
+## Writing for the reader
+
+The user reads the plan to understand and sign it off quickly; the executing agent reads it to do the work. These rules also apply to feature specs.
+
+* Use plain language. Avoid compressed internal shorthand and phrasing that requires the codebase open to parse. Code identifiers appear as references beside a plain description, not as the description.
+* Put decisions and milestone validation gates in tables with stable IDs (`D1`, `G1`). Other sections cite an ID instead of restating the decision or gate.
+* Rejected designs get one line each in `## Rejected alternatives` at the bottom, with the reason and the superseding decision ID. Never mention them in the active body.
+
 ## Guidelines
 
 Self-containment and clarity:
@@ -55,8 +63,10 @@ Milestones must be concrete and independently verifiable. For each milestone, in
 
 * Scope: what capability is added in this step.
 * Changes: exact files to modify/create and the code-level description of each change.
-* Validation: commands/tests and expected results.
+* Validation: the IDs of its gates in the `Validation gates` table, plus any detail that does not fit a table cell.
 * Rollback/Containment: how to recover if the step fails.
+
+Every gate uses only capabilities delivered by its own milestone or an earlier one. The table's `Needs milestones` column makes this checkable: each value must be at most the gate's own milestone number.
 
 ## Living plan sections (mandatory)
 
@@ -66,7 +76,9 @@ Every ExecPlan must maintain these sections:
 2. `Skill Gates`
 3. `Surprises & Discoveries`
 4. `Decision Log`
-5. `Outcomes & Retrospective`
+5. `Validation gates`
+6. `Outcomes & Retrospective`
+7. `Rejected alternatives`
 
 Update these sections during execution, not after.
 
@@ -76,7 +88,7 @@ Every ExecPlan must include a `Skill Gates` section that lists which skills or e
 
 The section must cover both planning-time and execution-time work:
 
-* Planning gates: skills or guidance used before the plan records design decisions such as architecture, module boundaries, public interfaces, state ownership, refactoring strategy, test strategy, build or dependency changes, observability, error handling, security boundaries, frontend behavior, or documentation updates.
+* Planning gates: `plan-review` before each sign-off request, plus skills or guidance used before the plan records design decisions such as architecture, module boundaries, public interfaces, state ownership, refactoring strategy, test strategy, build or dependency changes, observability, error handling, security boundaries, frontend behavior, or documentation updates.
 * Execution gates: skills or guidance required before implementation, tests, refactors, API changes, build changes, documentation updates, architecture changes, or completion review.
 * Availability: any expected skill that is unavailable in the current environment, plus the fallback guidance used instead.
 
@@ -108,10 +120,13 @@ Describe the user-visible capability and why it is needed.
 - [ ] <...>
 - [x] (YYYY-MM-DD HH:MMZ) <Completed item>
 
+Evidence logs: <location of full logs and reusable evidence>
+
 ## Skill Gates
 
 Planning-time gates:
 
+- plan-review: before each sign-off request and after substantial revisions
 - <Skill or guidance>: <why it applies while drafting this plan>
 
 Execution-time gates:
@@ -129,9 +144,15 @@ Unavailable skills or fallbacks:
 
 ## Decision Log
 
-- Decision: <what was decided>
-  Rationale: <why>
-  Date/Author: <YYYY-MM-DD> / <name>
+| ID | Decision | Rationale | Date |
+|---|---|---|---|
+| D1 | <what was decided> | <why, one line> | YYYY-MM-DD |
+
+## Validation gates
+
+| ID | Milestone | Proves | Needs milestones | How to check | Expected |
+|---|---|---|---|---|---|
+| G1 | 1 | <user-visible behavior proved> | 1 | `<exact command or manual check>` | <observable result> |
 
 ## Outcomes & Retrospective
 
@@ -154,8 +175,7 @@ Describe the existing system for a newcomer. Name key files and data flow.
 
 ### Validation
 
-- Command: `<exact command>`
-  Expected: `<observable result>`
+Gates: G1. <Detail that does not fit the gates table, or nothing>
 
 ### Rollback/Containment
 
@@ -174,10 +194,13 @@ Describe the existing system for a newcomer. Name key files and data flow.
 
 ### Validation
 
-- Command: `<exact command>`
-  Expected: `<...>`
+Gates: G2. <...>
 
 ### Rollback/Containment
 
 <...>
+
+## Rejected alternatives
+
+- R1: <rejected design> - rejected because <reason>; superseded by D<n>
 ```
