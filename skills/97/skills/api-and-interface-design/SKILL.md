@@ -59,9 +59,9 @@ Run every decision in order. Decision 1 is the headline; the rest are how you sa
 7. **Design vocabulary, not conveniences.** *(Hohpe, 97/19.)* `parser.processNodes(text, false)` is meaningless at the call site — the reader must consult docs to learn what `false` means. A boolean or enum flag whose value flips the meaning of the operation is two operations wearing one name. Split it: give callers two well-named methods, or a small composable vocabulary they can combine in ways you didn't anticipate. The "convenience" of one method with a switch is convenience for the implementer, not the caller.
 8. **Test the code that uses your API.** *(Feathers, 97/35.)* It is not enough to write tests *of* your API; write tests of *code that calls* your API. The hurdles a caller hits when they try to mock, fake, or stub your types are the same hurdles every consumer will hit. Locking everything down with `final` / `sealed` / singleton / static may protect your future implementation choices, but it makes callers' code untestable — and your library will be replaced. Treat testability as a design constraint.
 
-### Polymorphism over conditionals
+### Closed states and open behavior
 
-9. **Reach for polymorphism before chains of `if`/`switch` on type tags.** *(Pepperdine, 97/59.)* When the caller has to choose behavior by inspecting an enum or type code (`if (item.kind == DOWNLOADABLE) shipByEmail(...) else shipBySurface(...)`), the API has handed responsibility for a closed set of cases back to every caller. A polymorphic interface (`item.ship(shipper)`) puts the choice inside the type that already knows the answer. Count `if`/`switch` statements that branch on type — that's roughly your count of missed polymorphism opportunities. Sometimes a conditional is genuinely simpler; default to polymorphism and justify the conditional.
+9. **Use closed variants for exhaustive data and polymorphism for open behavior.** *(Pepperdine, 97/59.)* A discriminated or tagged union is a good fit for a closed set of value states, serialization shapes, or exhaustive transitions. An interface or class hierarchy is a better fit when independently added implementations own varying behavior. In either case, do not make every caller inspect a tag and reproduce the same dispatch. Keep exhaustive matching inside the module that owns a closed concept; put open behavior behind the polymorphic interface that owns it.
 
 ## Red Flags
 
@@ -76,7 +76,7 @@ These thoughts mean STOP — restart the decisions:
 | "It takes a `string` — callers can pass whatever." | Strings and floats are an invitation to pass the wrong thing. A named type closes the door on the Mars-Orbiter class of bugs. (97/65) |
 | "The state is implicit — callers will know the order to call methods." | Implicit state means callers can call `ship` before `pay`. Make the state a type or guard every operation that depends on it. (97/84) |
 | "I'll mark everything `final` / `sealed` to keep my options open." | Locked-down APIs are untestable for the code that uses them. Write a test of a *caller* before you decide what to seal. (97/35) |
-| "Callers can `if` on the type tag — it's only three cases." | Three cases become thirty, scattered across every caller. Move the choice inside the type with polymorphism. (97/59) |
+| "Every caller can switch on the tag — it is a closed set." | Closed unions support exhaustive matching, not scattered dispatch. Keep the match in the owning module; use polymorphism instead when implementations must remain open for extension. (97/59) |
 | "If they pass bad input, they'll see a clear error message." | Errors are a sign of broken communication, not a feature. Eliminate the error condition or accept the common formats. (97/66) |
 | "It's an internal API — the rules don't apply." | Internal today is exposed tomorrow, and the wrong-use bugs accumulate either way. The rules apply. (97/55) |
 | "This class is the right home for it — it's already imported here." | Wedging a second concern onto a class that's already imported gives every caller a surface they don't all need. The exported surface should have one reason for callers to depend on it; split it. (97/76) |
@@ -97,7 +97,7 @@ You are done when **all** of the following are true:
 - [ ] States that constrain which operations are legal are represented explicitly, not as implicit folklore.
 - [ ] No public method takes a flag whose value flips the meaning of the operation.
 - [ ] You wrote (or sketched) a test of a *caller* of this API and confirmed the caller's code is testable.
-- [ ] Branching on type tags has been replaced by polymorphism, or you can name the reason a conditional is genuinely simpler here.
+- [ ] Closed variants are exhaustively handled in their owning module; open behavioral variation is behind a polymorphic interface; dispatch is not duplicated across callers.
 - [ ] You did not extract a shared abstraction whose two call sites are not yet provably the same concept.
 
 If any box is unchecked, you are not done. Either finish, or revert and re-plan.

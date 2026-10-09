@@ -43,7 +43,7 @@ If the change touches one of these domains even slightly, **invoke anyway** — 
 
 ### Errors (97/21, 97/26, 97/29)
 
-1. **Distinguish business exceptions from technical ones.** A *technical* exception means the system can't proceed — bad arguments, broken DB connection, programming error. Let it bubble to a top-level handler that puts the system in a safe state (rollback, log, alert, friendly user message); the caller can't fix it. A *business* exception is part of the contract — withdrawing from an empty account, booking an unavailable slot — and is an alternative return path the caller is expected to handle. Give them separate types or hierarchies; mixing them blurs the contract. *(Bergh Johnsson, 97/21.)*
+1. **Distinguish expected, actionable failures from defects and locally unactionable failures.** Domain failures such as withdrawing from an empty account are alternative contract results the caller is expected to handle. Operational failures such as unavailable storage or a remote timeout also belong in a typed return path when the caller can meaningfully recover, retry, degrade, translate, or display them. Programming defects and violated internal invariants should throw. Let an infrastructure exception propagate after necessary cleanup when the immediate caller has no meaningful response beyond top-level rollback, logging, alerting, or rendering. Translate it at a boundary only when doing so creates a useful contract for the next layer. Do not collapse these categories into one catch-all type. *(Bergh Johnsson, 97/21.)*
 2. **Never write the empty `catch`.** `try { ... } catch (...) {}` silently swallows everything. Same for ignoring return codes (`printf`'s return value, `write()`'s short-write count) and pretending `errno` doesn't exist. Example: a service-call wrapper swallows every exception and returns `null`, so every downstream caller has to invent their own theory of what `null` means. Expose erroneous conditions in your interfaces; if handling errors feels onerous, the interface is wrong. *(Goodliffe, 97/26.)*
 3. **Don't rely on unexplained magic.** If your change depends on behavior nobody can explain (build picks a DLL by load order, deployment reads an undocumented env var, a job runs because of a side effect in a config file), surface it in your summary to the user before shipping — don't bury the dependency. *(Griffiths, 97/29.)*
 
@@ -86,7 +86,7 @@ These thoughts mean STOP — apply the domain check before committing:
 
 | Thought | Reality |
 |---|---|
-| "I'll throw the same exception type for both — caller handles either way." | Technical and business exceptions are different contracts. Mixing them means callers can't tell what to guard against beforehand vs. handle after. (97/21) |
+| "I'll report every failure the same way — caller handles either way." | Domain alternatives, actionable operational failures, defects, and locally unactionable infrastructure failures are different contracts. Choose the representation by what the immediate caller can meaningfully do. (97/21) |
 | "Empty catch is fine, the error can't happen here." | "Can't happen" is how silent corruption ships. Log, rethrow, or surface the error — never swallow. (97/26) |
 | "Nobody on the team knows how this build step works, but it works." | Magic that no one owns is a fault waiting for the day the magic stops. Find the person who knows or document it now. (97/29) |
 | "`if (a == b)` for floats is fine, the values are computed the same way." | `0.1 + 0.2 != 0.3`. Use a tolerance scaled to magnitude, or use a decimal type. (97/33) |
@@ -107,7 +107,7 @@ These thoughts mean STOP — apply the domain check before committing:
 
 You are done when **all** of the following are true for every domain below your change touches:
 
-- [ ] **Errors:** technical and business exceptions have distinct types; no empty catches; any "magic" the change relies on has a named owner or a documented restart path.
+- [ ] **Errors:** domain and actionable operational failures are explicit contract results; defects throw; infrastructure failures are translated only where the next layer gains a useful contract; no empty catches; any "magic" the change relies on has a named owner or a documented restart path.
 - [ ] **Numerics:** no `==` between floats; tolerances scaled to magnitude; money uses a decimal type; subtractions of near-equal magnitudes have been audited for cancellation.
 - [ ] **Concurrency & IPC:** shared mutable state is justified or replaced by message passing; remote calls per user stimulus are counted and bounded; retries have backoff, jitter, and a ceiling.
 - [ ] **Limits & Performance:** the data structure matches the access pattern; no invariants recomputed inside hot loops; perf claims are measured, not reasoned.

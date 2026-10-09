@@ -120,7 +120,7 @@ Describe the user-visible capability and why it is needed.
 - [ ] <...>
 - [x] (YYYY-MM-DD HH:MMZ) <Completed item>
 
-Evidence logs: <location of full logs and reusable evidence>
+Evidence logs: <location of full logs and reusable evidence; default `test-evidence/<feature-name>/`, never a folder a test runner or build cleans, such as Playwright's `test-results/`>
 
 ## Skill Gates
 
