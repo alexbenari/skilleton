@@ -61,6 +61,7 @@
 - It may read domain state in order to drive workflow, but reading domain state alone does not make code orchestration.
 - Do not place UI rendering concerns or reusable presentation logic in the application controller layer.
 - Do not move domain rules into the controller layer just because the controller is already coordinating a flow.
+- When a workflow needs the outcome of a user interaction to continue, the interaction returns that outcome to its caller, for example as a promise or a result callback. Do not record the caller's intent in shared state for the completing component to inspect; a callee must not know which caller's workflow it resumes. Every exit path, including cancel, Escape, and closing by other means, must settle the result.
 
 ## Tradeoffs and exceptions
 - Prefer free functions when behavior is genuinely stateless, cross-cutting, or more idiomatic in the language or framework.
