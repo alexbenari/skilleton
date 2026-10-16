@@ -6,9 +6,11 @@ Use this flow when the user explicitly wants to plan a new feature together.
 
 1. Get up to speed on the user's feature description by reading the agent documentation in the Agent Documentation section first, then inspecting only the relevant code paths it points to.
 2. Refine the spec with the user.
-3. Once the spec is agreed, create `docs/specs/[feature-name]-spec.md` and ask the user to sign it off.
-4. After spec sign-off, create `docs/plans/[feature-name]-exec-plan.md` using `PLANS.md` as the source of truth, then ask the user to sign it off.
+3. Once the spec is agreed, create `docs/specs/[feature-name]-spec.md`, run the project-local `plan-review` skill on it, and ask the user to sign it off.
+4. After spec sign-off, create `docs/plans/[feature-name]-exec-plan.md` using `PLANS.md` as the source of truth, run `plan-review` on it, then ask the user to sign it off.
 5. Implement the feature after the execution plan is signed off.
+
+Specs follow the "Writing for the reader" rules in `PLANS.md`. Run `plan-review` again after any substantial revision of a spec or plan, and include its report in the sign-off request. If `plan-review` is unavailable, skip the review and say so in the sign-off request.
 
 If the user explicitly waives part of this flow for the current task, follow the user's instruction.
 
@@ -52,7 +54,7 @@ Apply that guidance as follows:
 - If the repository guidance conflicts with framework conventions, correctness, security, explicit user instructions, or hard technical constraints, follow the constraint and explain the deviation briefly.
 - Do not apply the repository guidance mechanically; use judgment where the document leaves room for interpretation.
 
-For substantial code changes, design work, or code reviews, perform a final pass against the repository design-guidance document and call out any important deviations, tradeoffs, or unresolved tensions.
+After each non-trivial code change, run the project-local `code-quality-review` skill before reporting the change done or committing it, and include its report. A change is non-trivial when it adds a class, module, or production file, changes a public interface, moves code between classes or layers, replaces an algorithm, or adds a feature; the skill defines the full trigger. In an execution plan, run it at the end of each milestone that changes production code, before the milestone's validation gate. If `code-quality-review` is unavailable, review the change against the design-guidance document yourself and say so in the report.
 
 
 ## Skill use during planning and execution
@@ -143,3 +145,10 @@ Match multiline input syntax to the active shell. Do not use Bash heredocs in
 PowerShell; use PowerShell here-strings instead. More generally, verify that
 shell features and quoting syntax are valid for the current shell before
 running extraction or text-processing commands.
+
+## File edits
+
+Edit files with the harness's edit tool (`apply_patch` in Codex, `Edit` in
+Claude Code), which fails when the expected text is not found. If an edit must
+be scripted, assert the expected number of matches and fail on mismatch; never
+use a replacement that succeeds silently when nothing matched.

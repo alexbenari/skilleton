@@ -45,7 +45,7 @@ If either skill does not exist, notify the user.
 
 ## Code design guidance
 
-When working on code design, refactoring, architecture, or code review tasks, first read the repository's design-guidance document `coding-quality.md`, if it exists. Treat that document as the repository's source of truth for local design preferences.
+When writing or modifying code — implementation, design, refactoring, architecture, or review — first read the repository's design-guidance document `coding-quality.md`, if it exists. Treat that document as the repository's source of truth for local design preferences.
 
 The repository design-guidance document takes precedence over conflicting skill guidance on matters of code structure, layering, naming, responsibility boundaries, and review standards.
 
@@ -54,7 +54,7 @@ Apply that guidance as follows:
 - If the repository guidance conflicts with framework conventions, correctness, security, explicit user instructions, or hard technical constraints, follow the constraint and explain the deviation briefly.
 - Do not apply the repository guidance mechanically; use judgment where the document leaves room for interpretation.
 
-For substantial code changes, design work, or code reviews, perform a final pass against the repository design-guidance document and call out any important deviations, tradeoffs, or unresolved tensions.
+After each non-trivial code change, run the project-local `code-quality-review` skill before reporting the change done or committing it, and include its report. A change is non-trivial when it adds a class, module, or production file, changes a public interface, moves code between classes or layers, replaces an algorithm, or adds a feature; the skill defines the full trigger. In an execution plan, run it at the end of each milestone that changes production code, before the milestone's validation gate. If `code-quality-review` is unavailable, review the change against the design-guidance document yourself and say so in the report.
 
 ## Skill use during planning and execution
 
@@ -109,6 +109,10 @@ the result can be independently checked for materially less effort than doing th
 task directly. Otherwise keep the task with the root. Keep architecture,
 ambiguous or cross-cutting coding, research synthesis and decisions, user
 interaction, and final acceptance with the root.
+
+The cost gate does not apply to a fresh-context reviewer that a skill requires,
+such as the one `code-quality-review` starts. That reviewer exists for
+independence, not savings, and runs at the root's model and effort.
 
 Do not fetch current token rates for routine decisions. Use known relative model
 costs and delegate only when the conservative upper estimate of briefing,

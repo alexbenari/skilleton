@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Quality Review"
+  short_description: "Review a code change against coding-quality.md with a fresh-context reviewer"
+  default_prompt: "Review the code change I just finished against coding-quality.md with a fresh-context reviewer. Fix what has one correct resolution and list what needs my decision."

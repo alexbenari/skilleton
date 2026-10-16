@@ -31,6 +31,10 @@
 - A boundary should make misuse difficult. Keep APIs small, intention-revealing, and hard to call incorrectly.
 - A method should operate at one level of abstraction. A class should gather behavior that belongs together. A layer should group components with the same kind of responsibility.
 - Before adding behavior to an existing class or module, ask whether it shares the same reason to change. If not, create a separate abstraction instead.
+- Own state in the right place and enforce invariants at the boundary that owns them.
+- Dependencies should point in the right direction. Do not bypass layers.
+- Every parameter should be used. Do not make a method carry duplicate inputs when one value can be derived from another.
+- Functions with more than three arguments often signal missing structure, confused ownership, or weak boundaries.
 
 ## Naming and code shape
 - Name classes and modules by responsibility, not by implementation details.
@@ -38,7 +42,11 @@
 - Files that contain a single primary class should usually be named after that class.
 - Name methods by what they accomplish, not how they do it.
 - Name variables by the role they play in the current scope.
-- Prefer code that a reader can understand quickly over clever compactness.
+- Keep names clear, proportional, and aligned with responsibility.
+- Prefer code that a reader can understand quickly, with control flow that is easy to follow, over clever compactness.
+
+## Error handling
+- Handle errors explicitly and make failure modes clear.
 
 ## Comments
 
@@ -68,39 +76,13 @@
 - Prefer duplication over abstraction when the shared pattern is still unstable or the abstraction would obscure intent.
 - A class may own multiple closely related behaviors if they change together and reinforce one responsibility.
 - Follow framework conventions unless there is a strong reason not to. Local design preferences should not fight the platform without a clear payoff.
+- Avoid obvious performance or memory inefficiencies, but do not trade away clarity for speculative micro-optimizations.
 
 ## Test reliability
 
+- Keep tests reflecting the intended behavior, and match unit, integration, and end-to-end coverage to the risk of the code.
 - Do not assert private DOM structure, incidental call counts, exact pixel measurements, animation frames, or timestamps unless the requirement guarantees them. Assert observable behavior and relationships; use a justified tolerance for approximate values.
 - Do not use fixed sleeps or assume a background operation finishes within a particular interval. Wait for an observable completion condition with a bounded timeout; control clocks, animations, and external responses in tests that need exact timing.
 - Do not let tests depend on execution order, shared user data, random input, live services, or machine-specific state. Give each test explicit fixtures and isolated state, and clean up what it creates.
 - Do not combine several slow or failure-prone operations in one end-to-end test under a single timeout. Keep each scenario focused; cover detailed rules in unit or integration tests and reserve end-to-end tests for essential user workflows.
 - Do not weaken assertions or only raise timeouts to make a flaky test pass. Check whether the failure reveals a product bug, then make the setup and observation deterministic. If real hardware or media timing is essential, run that check separately; if it cannot be made reliable, remove it and record the coverage gap.
-
-## Code review guidelines
-- First map the application's layers and responsibilities. Verify that they make sense for the app's type and goals.
-- Check whether each class, module, and method has a clear responsibility and whether its behavior is cohesive.
-- Check whether boundaries are in the right place across layers, classes, and methods.
-- Verify that params are all used and that no method carries duplicate inputs when one value can be derived from another.
-- Check whether names are clear, proportional, and aligned with responsibility.
-- Check whether control flow is easy to follow and whether a reader can understand the code quickly.
-- Look for over-engineering, premature generalization, and abstractions that do not earn their cost.
-- Review functions with more than three arguments closely. They often signal missing structure, confused ownership, or weak boundaries.
-- Check whether state is owned in the right place and whether invariants are enforced at the right boundary.
-- Check whether dependencies point in the right direction and whether layers are being bypassed.
-- Check whether errors are handled explicitly, whether failure modes are clear, and whether APIs make misuse difficult.
-- Check whether tests still make sense and whether unit, integration, and end-to-end coverage match the risk of the code.
-- Check for obvious performance or memory inefficiencies, but do not trade away clarity for speculative micro-optimizations.
-
-## Review questions
-- Can a reader understand the code quickly?
-- Is control flow easy to follow?
-- Does each abstraction earn its cost?
-- Is any part over-engineered or prematurely generalized?
-- Are responsibilities placed in the right layer and on the right abstraction?
-- Is state owned in the right place?
-- Are invariants enforced where they should be?
-- Are names clear and intention-revealing?
-- Are errors and failure modes explicit?
-- Do the tests still reflect the intended behavior?
-- Are there obvious performance or memory issues worth addressing?
