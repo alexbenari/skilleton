@@ -6,9 +6,11 @@ Use this flow when the user explicitly wants to plan a new feature together.
 
 1. Get up to speed on the user's feature description by reading the agent documentation in the Agent Documentation section first, then inspecting only the relevant code paths it points to.
 2. Refine the spec with the user.
-3. Once the spec is agreed, create `docs/specs/[feature-name]-spec.md` and ask the user to sign it off.
-4. After spec sign-off, create `docs/plans/[feature-name]-exec-plan.md` using `PLANS.md` as the source of truth, then ask the user to sign it off.
+3. Once the spec is agreed, create `docs/specs/[feature-name]-spec.md`, run the project-local `plan-review` skill on it, and ask the user to sign it off.
+4. After spec sign-off, create `docs/plans/[feature-name]-exec-plan.md` using `PLANS.md` as the source of truth, run `plan-review` on it, then ask the user to sign it off.
 5. Implement the feature after the execution plan is signed off.
+
+Specs follow the "Writing for the reader" rules in `PLANS.md`. Run `plan-review` again after any substantial revision of a spec or plan, and include its report in the sign-off request. If `plan-review` is unavailable, skip the review and say so in the sign-off request.
 
 If the user explicitly waives part of this flow for the current task, follow the user's instruction.
 
@@ -74,14 +76,54 @@ Use automated verification when unit, integration, or e2e tests can directly pro
 
 Do not claim completion from implementation-level evidence when the requested goal is user-visible behavior.
 
-## Subagent report verification
+## Token-efficient execution
 
-Before relaying a subagent's report or building on it, independently verify its
-load-bearing claims through the cheapest direct channel (re-run tests, count rows,
-check git state, probe "identical" claims, byte-check encodings of deliverables).
-A completion notification without the brief's deliverable is a stalled agent, not
-a report. Delegation briefs must instruct agents to report spec/oracle
-disagreements rather than tune to match them.
+Reduce token use by reusing evidence and limiting exploratory work, never by
+weakening the agreed behavior, code quality, or verification.
+
+- Reuse fixtures, probes, and result formats across milestones when they still
+  exercise the production path. Verify fixture identity, state what change would
+  invalidate reused evidence, and rerun only if that change has happened since
+  the last run's results.
+- Do not repeat an expensive measurement when later work has not changed the
+  behavior it measures.
+- Preserve complete evidence and exit codes in log files, and record their
+  location in the plan's `Progress` section. Report concise pass counts,
+  decisions, and failure excerpts during work.
+- Store evidence where no test runner or build step cleans it; for example,
+  Playwright deletes `test-results/` at the start of every run. Default to a
+  version-control-ignored `test-evidence/<feature-name>/` folder.
+- Reject an optimization that trades away confidence, coverage, correctness, or
+  a user-visible requirement.
+
+## Cost-aware subagent delegation
+
+Use the project-local `cost-aware-delegation` skill whenever considering or
+performing subagent delegation. The primary purpose of delegation is to replace
+work by the strong root model with a less expensive model that is expected to be
+comparably reliable for the bounded task. Do not delegate for parallelism alone.
+
+Delegate only when the cheaper model is suitable, the task is large enough to
+amortize briefing and verification, the brief can bound the work precisely, and
+the result can be independently checked for materially less effort than doing the
+task directly. Otherwise keep the task with the root. Keep architecture,
+ambiguous or cross-cutting coding, research synthesis and decisions, user
+interaction, and final acceptance with the root.
+
+Do not fetch current token rates for routine decisions. Use known relative model
+costs and delegate only when the conservative upper estimate of briefing,
+subagent work, verification, and recovery remains clearly below direct root work;
+the skill defines a practical default margin and when current rates merit review.
+
+Before relying on a subagent result, perform the predefined focused check. A
+completion notification without the requested deliverable and evidence is a
+stalled result, not proof of completion. Delegation briefs must require agents to
+report specification or oracle disagreements rather than tune to match them.
+
+When delegation occurs, keep the skill's lightweight in-session diagnostics and
+include a short outcome assessment at task completion. Do not persist the log
+unless the user or repository policy requests it, and do not change policy from
+a single result.
 
 ## Shell Choice On Windows
 
@@ -114,3 +156,10 @@ Match multiline input syntax to the active shell. Do not use Bash heredocs in
 PowerShell; use PowerShell here-strings instead. More generally, verify that
 shell features and quoting syntax are valid for the current shell before
 running extraction or text-processing commands.
+
+## File edits
+
+Edit files with the harness's edit tool (`apply_patch` in Codex, `Edit` in
+Claude Code), which fails when the expected text is not found. If an edit must
+be scripted, assert the expected number of matches and fail on mismatch; never
+use a replacement that succeeds silently when nothing matched.

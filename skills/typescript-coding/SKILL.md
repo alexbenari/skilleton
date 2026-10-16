@@ -1,299 +1,185 @@
 ---
 name: typescript-coding
-description: TypeScript-specific coding guidance for agents. Use when Codex is writing, modifying, reviewing, or planning TypeScript code; especially useful for TypeScript error modeling, parsing boundaries, domain/refined types, module boundaries, dependency interfaces, adapters, tests, and strictness/safety decisions. This skill supplements general coding, design, testing, debugging, and documentation skills rather than replacing them.
+description: Use whenever writing, modifying, reviewing, debugging, refactoring, testing, or planning TypeScript code. Load alongside all applicable workflow, design, testing, security, and correctness skills; this skill adds TypeScript-specific type, runtime-boundary, error-encoding, module, and compiler guidance rather than replacing them.
 ---
 
 # TypeScript Coding
 
-## Overview
+Apply this skill as a TypeScript-specific overlay. Other applicable skills decide
+the workflow and broad design, testing, security, and error-handling policy; this
+skill explains how to express those decisions safely in TypeScript.
 
-Use this skill to write TypeScript that is explicit, safe, testable, and sympathetic to the codebase already in front of you. Prefer local architecture and conventions first; apply these standards to new or touched code without forcing broad migrations.
+Follow explicit user and repository instructions first. Preserve established
+architecture and conventions, and do not turn a touched file into a broad type,
+module, dependency, or compiler migration.
 
-## Decision Priority
+## Runtime boundaries
 
-When guidance pulls in different directions:
+TypeScript types disappear at runtime. Treat values from HTTP, IPC, files,
+storage, environment variables, third-party libraries, and deserialization as
+`unknown` until runtime parsing establishes their shape and invariants.
 
-1. Preserve correctness, safety, and debuggability.
-2. Follow explicit user instructions and repository instructions.
-3. Follow established project architecture and local conventions.
-4. Use general workflow/design/testing skills for process and broad design gates.
-5. Apply this skill for TypeScript-specific implementation choices.
-6. Avoid broad migrations unless the user asked for them.
-7. Record meaningful trade-offs in comments, ADRs, or the handoff summary.
+Parse at the earliest owned boundary and pass refined values inward:
 
-Before adding patterns, libraries, adapters, or abstractions, inspect the existing code for choices around error handling, schema parsing, dependency injection, testing, observability, adapters/services, and module layout.
-
-## Expected Failures
-
-Model expected failures as values. Expected failures include domain, parsing, authorization, integration, I/O, persistence, and workflow failures. Put them in the return type instead of throwing or relying on promise rejection.
-
-Prefer the project's established error-value pattern:
-
-1. Use Effect if the codebase already uses Effect.
-2. Use `better-result`, neverthrow, a local `Result`, or another established pattern if the codebase already uses one.
-3. Use a small local tagged union for the current change when no shared pattern exists and it keeps progress moving.
-
-Recommend adopting a shared result library or shared local prelude only when typed expected failures become a repeated cross-module pattern. Do not stop an unrelated task to redesign the project's error model. Treat Effect as an architecture choice, not an incidental dependency.
-
-Use precise custom tagged errors at module boundaries:
-
-```ts
-type Result<T, E extends Error> =
-  | { readonly _tag: "ok"; readonly value: T }
-  | { readonly _tag: "err"; readonly error: E };
-
-export class UserStoreUnavailable extends Error {
-  readonly _tag = "UserStoreUnavailable";
-
-  constructor(
-    readonly operation: "findActiveByEmail",
-    readonly provider: "postgres",
-    readonly cause: unknown,
-  ) {
-    super(`User store unavailable during ${operation}`);
-  }
-}
+```text
+unknown -> transport/config shape -> application input -> domain type
 ```
 
-Keep error unions precise near domain/application boundaries:
+- Use `parseX(input): Result<X, ParseXError>` when input is untrusted or less
+  structured.
+- Use `makeX(...)` or `createX(...)` for construction from already-refined
+  pieces.
+- Use `isX(value): value is X` only for a true predicate or type guard.
+- Avoid `validateX` when the function returns a refined value; it parsed one.
 
-```ts
-Promise<Result<User, UserNotFound | UserStoreUnavailable>>
-```
+Prefer the repository's established parser. A new schema or result dependency
+requires the repository's normal dependency-evaluation workflow; never add one
+merely to satisfy this skill. Do not pass raw DTOs, schema-inference types,
+nullable bags, or `Partial<T>` through core logic unless that looseness is the
+actual domain concept.
 
-Avoid broad `AppError`-style types except near entrypoints, orchestration, logging, and rendering layers. Throw only for unrecoverable defects such as violated internal invariants, impossible branches, startup misconfiguration, temporary `notYetImplemented` paths, and catastrophic runtime conditions.
+## Refined values and meaningful primitives
 
-## Parse Boundaries
+Use a domain or refined type when two same-shaped values are easy to confuse or a
+runtime invariant matters: identifiers, parsed addresses and URLs, constrained
+numbers, money, durations, byte counts, and similar values.
 
-Parse early. Boundary code should turn unknown or less-structured input into domain types as soon as practical.
-
-Prefer:
-
-```txt
-unknown -> HttpBodyDto -> CreateUserInput -> EmailAddress/UserId/etc.
-```
-
-Avoid passing raw schema inference types, raw DTOs, raw IDs, nullable bags, or `Partial<T>` through core/application logic unless that looseness is the domain concept.
-
-Use names that preserve meaning:
-
-- `parseX(input): Result<X, ParseXError>` for untrusted or less-structured input.
-- `makeX(...)` or `createX(...)` for smart constructors from already-typed pieces.
-- `isX(value): boolean` for true predicates.
-- `assertX(...)` rarely, mostly at tests/framework boundaries.
-
-Avoid `validateX` when the function returns a refined value. It parsed something.
-
-Use schema libraries as boundary parsers, not as ad-hoc validators sprinkled through core logic. Prefer the repo's established schema library. In Effect codebases use Effect Schema. Prefer Standard Schema compatibility for generic helpers when relevant. Otherwise prefer a mainstream parser such as Zod, or hand-written smart constructors for small domain types when clearer.
-
-## Domain And Refined Types
-
-Use branded, refined, or domain-specific types for meaningful primitives:
-
-- IDs: `UserId`, `OrgId`, `WorkflowId`
-- parsed strings: `EmailAddress`, `NonEmptyString`, `Url`
-- constrained numbers: `PositiveInt`, `Cents`, `Percentage`
-- units: `Milliseconds`, `Bytes`, `UsdCents`
-
-A branded type is a TypeScript compile-time distinction over a runtime value, usually created by a parser or smart constructor. A refined type is a value that has been checked to satisfy a rule.
+Centralize the runtime check and any unavoidable cast in one parser or smart
+constructor:
 
 ```ts
 type Brand<T, Name extends string> = T & { readonly __brand: Name };
-type EmailAddress = Brand<string, "EmailAddress">;
+type UserId = Brand<string, "UserId">;
 
-export function parseEmailAddress(input: string): Result<EmailAddress, InvalidEmailAddress> {
-  const normalized = input.trim().toLowerCase();
-  if (!normalized.includes("@")) {
-    return { _tag: "err", error: new InvalidEmailAddress() };
-  }
-
-  // SAFETY: The format check above is the only production path that creates EmailAddress.
-  return { _tag: "ok", value: normalized as EmailAddress };
+function parseUserId(input: string): Result<UserId, InvalidUserId> {
+  if (input.length === 0) return { ok: false, error: new InvalidUserId() };
+  // SAFETY: This parser is the only production constructor for UserId.
+  return { ok: true, value: input as UserId };
 }
 ```
 
-Use safety comments for branding casts or other casts TypeScript cannot prove. Do not use non-null assertions. Branch, parse, or refine instead.
-
-Model meaningful lifecycle states with tagged unions or equivalent value classes:
+Do not scatter branding casts through callers. Prefer immutable values and
+`ReadonlyArray<T>` when mutation is not part of the contract. Use `satisfies` to
+check a value against a shape without replacing its useful inferred type:
 
 ```ts
-type Invoice =
-  | { readonly _tag: "Draft"; readonly id: InvoiceId; readonly lines: ReadonlyArray<LineItem> }
-  | { readonly _tag: "Sent"; readonly id: InvoiceId; readonly sentAt: Instant }
-  | { readonly _tag: "Paid"; readonly id: InvoiceId; readonly paidAt: Instant };
+const defaults = { autoplay: false, volume: 1 } satisfies PlayerSettings;
 ```
 
-Avoid boolean parameters that control behavior. Prefer named options or domain values:
+## Closed states and open behavior
+
+Choose representation according to how variation evolves:
+
+- Use a discriminated union for a closed set of value states, serialization
+  shapes, or exhaustive state transitions.
+- Use an interface or class hierarchy for an open set of independently added
+  implementations whose behavior varies.
+- Avoid distributing repeated switches across callers. Keep union matching and
+  state transitions in the module that owns the concept.
+
+Make closed matches exhaustive:
 
 ```ts
-createUser(input, { emailVerification: "skip" });
-```
-
-Booleans are fine as clear predicate returns, such as `isExpired(token)` or `hasPermission(user, permission)`.
-
-## Modules And Boundaries
-
-Design deep, cohesive modules. A deep module hides substantial behavior or invariants behind a low-burden interface. Avoid shallow wrappers that only forward calls, mirror tables, or expose implementation steps.
-
-Use the deletion test:
-
-- If deleting the module makes complexity disappear, it was probably pass-through waste.
-- If deleting it spreads complexity across callers, it was probably earning its keep.
-
-Prefer domain modules for core concepts. A domain module centers on one primary type or tightly related type family and exposes cohesive operations such as parsers, smart constructors, combinators, predicates, formatting helpers, and test arbitraries.
-
-```ts
-// email-address.ts
-export type EmailAddress = Brand<string, "EmailAddress">;
-export function parse(input: string): Result<EmailAddress, InvalidEmailAddress>;
-export function toString(email: EmailAddress): string;
-export function equals(left: EmailAddress, right: EmailAddress): boolean;
-```
-
-Domain modules may be plain functions, classes, or static-style classes when cohesive. If using classes for domain values, construct through `parse`, `make`, or smart constructors; make invalid instances unconstructable; keep fields readonly from callers; keep behavior cohesive over that value; and avoid hiding dependencies or I/O inside domain values.
-
-Use application/service modules for real capabilities or operations such as `PasswordReset`, `Billing`, `Invitations`, or `SubscriptionLifecycle`. Prefer classes with constructor injection when a module has dependencies, stateful resources, configuration, or multiple cohesive operations. Avoid vague names like `Manager`, `Processor`, `Helper`, or generic `UserService` unless established by the project.
-
-## Dependencies And Adapters
-
-Depend on the smallest meaningful shape a module actually uses. Let concrete adapters be wider.
-
-```ts
-type UsersForPasswordReset = {
-  findActiveByEmail(email: EmailAddress): Promise<Result<ActiveUser, UserLookupError>>;
-};
-
-export class PasswordReset {
-  constructor(private readonly users: UsersForPasswordReset) {}
+function assertNever(value: never): never {
+  throw new Error(`Unexpected variant: ${String(value)}`);
 }
 ```
 
-A wider concrete adapter can satisfy that structural type without forcing every caller to depend on the whole adapter.
+This distinction refines, rather than overrides, repository guidance favoring
+polymorphism. Preserve class-based ownership of state and invariants where that
+is the local architecture. Pure methods on immutable domain objects are still
+pure; a functional style does not require separating behavior from its owner.
 
-Before creating a new adapter or service, audit existing adapters/services:
+## Encoding failure contracts
 
-1. Reuse an existing adapter as-is through a narrow dependency type.
-2. Extend an existing adapter if the new method fits its cohesive capability and changes for the same reason.
-3. Create a new adapter only when reuse or extension would create bad coupling or an accidental interface.
+Use the applicable correctness and API guidance to decide which failures callers
+must handle. In general:
 
-Create an ADR for a meaningful new adapter/service after the audit. Do not require an ADR for tiny local test adapters, obvious in-memory fakes, or trivial framework glue.
+- Represent domain failures and actionable operational failures as typed return
+  values when callers are expected to recover, retry, degrade, translate, or
+  display them.
+- Throw for programmer defects, violated internal invariants, and failures for
+  which the immediate caller has no meaningful response beyond cleanup and
+  top-level handling.
+- Translate an infrastructure exception into a typed error at a boundary only
+  when doing so creates a useful contract for the next layer.
 
-Avoid repository-per-table by default. Repository-like adapters are acceptable when they represent a cohesive domain persistence capability and expose meaningful domain operations returning parsed domain types and typed errors. Keep raw database rows and ORM models inside infrastructure adapters or persistence modules.
-
-## Functional Core And Imperative Shell
-
-Prefer a functional core with an imperative shell.
-
-The functional core contains domain logic, parsers, state transitions, combinators, and decision functions. It avoids I/O, hidden dependencies, ambient time/randomness, thrown expected failures, and framework-specific concerns.
-
-The imperative shell parses untrusted input, sequences effects, calls the core with refined values, classifies external failures into typed errors, and handles I/O, persistence, HTTP, queues, telemetry, time, and randomness.
-
-Keep entrypoint adapters thin. They should parse protocol-specific input, invoke shared modules, and render protocol-specific output. Do not duplicate business rules in controllers, resolvers, workers, or CLI handlers. Put shared authorization policy in application/domain modules; entrypoints may authenticate but should pass parsed authorization inputs such as `AdminUser`, `Session`, `Principal`, or `CommandActor`.
-
-Use database transactions for simple single-boundary operations. Use a saga or durable workflow when the process needs retries, compensation, idempotency, resumability, timers, human approval, cross-service coordination, or multiple transaction boundaries. Do not hold database transactions open across network calls or long-running work.
-
-Any command, job, or workflow step that may be retried needs an explicit idempotency strategy, such as an idempotency key, natural unique constraint, deduplication record, state-machine transition guard, or transactional outbox/inbox.
-
-## Testing TypeScript
-
-Prefer confidence-oriented tests:
-
-1. End-to-end tests for critical user flows.
-2. Integration tests through real seams.
-3. Focused or property tests for pure domain modules.
-4. Unit tests when they test meaningful behavior, not implementation details.
-
-Avoid `vi.mock` and `jest.mock` for module mocking by default. A real seam is an explicit boundary where a dependency is passed in or swapped intentionally: constructor-injected interfaces/classes, Effect services/layers, local database substitutes, in-memory adapters, or fake external adapters.
-
-Prefer tests that assert observable behavior:
-
-- returned value or typed error,
-- persisted state,
-- emitted event/message,
-- rendered response,
-- sent email or external request recorded in a fake adapter.
-
-Avoid spy-driven tests such as `expect(sendEmail).toHaveBeenCalledWith(...)` unless the interaction itself is the only observable behavior.
-
-For persistence behavior, prefer SQLite/local DB-backed tests when SQL, schema, or transaction behavior matters. Use in-memory fakes when the persistence mechanics are not the behavior under test.
-
-Use `fast-check` where properties are clearer than examples, especially for parsers/smart constructors, branded/refined types, state machines, serialization roundtrips, normalization/idempotence, and lawful combinators. Place arbitraries near the domain module they support when practical.
-
-## TypeScript Style And Safety
-
-Use strict TypeScript settings where practical:
-
-- `strict: true`
-- `noUncheckedIndexedAccess: true`
-- `exactOptionalPropertyTypes: true`
-- `noImplicitOverride: true`
-- `noFallthroughCasesInSwitch: true`
-
-Prefer immutable values:
+Encode an agreed value-based contract with the project's existing `Result`,
+Effect, tagged union, or equivalent. Keep error unions precise near their owning
+boundary; avoid collapsing everything into `AppError` until an entrypoint needs
+to log or render it.
 
 ```ts
-type CreateUserInput = {
-  readonly email: EmailAddress;
-  readonly roles: ReadonlyArray<Role>;
-};
+type Result<T, E> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: E };
 ```
 
-Mutation is acceptable inside localized imperative shell code, performance-sensitive internals, builders, or adapters when hidden behind a precise interface.
+Preserve the original failure as `cause: unknown` when it helps diagnosis, but
+do not expose secrets or infrastructure details across an untrusted boundary.
 
-Avoid:
+## Strictness and escape hatches
 
-- `any`,
-- non-null assertions,
-- casts with `as Type`.
+Use the repository's compiler configuration. For a new or deliberately tightened
+TypeScript boundary, consider these options together with their migration cost:
 
-`as const` is fine. Rare exceptions are allowed for highly generic helpers, branding internals, interop boundaries, or combinators where TypeScript cannot express the invariant. Add a safety comment for non-`as const` casts and a targeted lint ignore with justification for rare `any`.
+- `strict`
+- `noUncheckedIndexedAccess`
+- `exactOptionalPropertyTypes`
+- `noImplicitOverride`
+- `noFallthroughCasesInSwitch`
 
-Prefer direct imports from the file that owns the abstraction. Avoid barrel files and `index.ts` re-export layers by default.
+Do not change project-wide compiler settings as an incidental part of another
+task. Under `exactOptionalPropertyTypes`, distinguish a missing property from a
+present property whose value is `undefined`; model whichever state the contract
+actually means.
 
-Use namespace imports when they preserve a domain module shape:
+Avoid `any`, non-null assertions, and casts that claim more than runtime evidence
+proves. Prefer `unknown`, narrowing, parsing, and explicit branches. `as const` is
+safe for literal inference. When TypeScript cannot express a proven invariant,
+keep the cast inside the smallest owning abstraction and add a short safety
+comment explaining the runtime proof. A rare `any` also needs a narrowly scoped
+lint suppression with justification.
 
-```ts
-import * as EmailAddress from "./email-address";
+## Modules and initialization
 
-EmailAddress.parse(input);
-```
+- Export only the contract callers need; keep helpers private and do not export
+  internals solely for tests.
+- Use `import type` and `export type` for type-only edges.
+- Prefer direct imports from the owning module unless the repository deliberately
+  exposes a stable package-level entrypoint.
+- Avoid new barrel layers that obscure ownership or create cycles.
+- Avoid TypeScript `namespace` except for a concrete interoperability need.
+- Keep imports free of unexpected work. Start servers, open connections, read
+  configuration, register handlers, and acquire resources in explicit bootstrap
+  code rather than at module import time.
 
-Use named imports for classes, prelude helpers, and focused shared helpers. Use `import type` and `export type` for type-only imports and exports.
+Follow local architecture when choosing classes versus functions. Stateful
+responsibilities usually benefit from cohesive objects and explicit constructor
+dependencies; genuinely stateless calculations are often clearer as functions.
+Record durable boundary decisions through the repository's established
+architecture-documentation mechanism. Use an ADR only when the repository
+already uses ADRs or the user requests one.
 
-Export only what callers should use. Keep internal helpers unexported unless intentionally shared. Do not export internals only for tests. Avoid TypeScript `namespace` unless there is a compelling interop reason.
+## Comments and documentation
 
-Use precise file names such as `email-address.ts`, `billing-period.ts`, `string-case.ts`, or `prelude.ts`. Avoid vague files such as `utils.ts`, `helpers.ts`, `common.ts`, and `misc.ts`. `prelude.ts` is acceptable for tiny ubiquitous generic helpers/types such as `casesHandled`, `shouldNeverHappen`, `notYetImplemented`, `Redacted`, common `Result` helpers, and broad type utilities. Do not put domain/application policy in `prelude.ts`.
+Do not add routine JSDoc when the name and signature explain the contract. Use a
+documentation block only for a non-obvious constraint, invariant, side effect,
+interoperability requirement, or externally imposed contract that the signature
+cannot express. Use short inline comments for the reason behind an unavoidable
+cast or workaround, not to narrate the code.
 
-## Comments And JSDoc
+## TypeScript review checklist
 
-Use comments to explain invariants, trade-offs, non-obvious domain rules, and safety justifications. Avoid comments that narrate obvious code.
-
-Use a soft JSDoc default: document exported symbols when the name and TypeScript signature do not fully explain the contract. Strongly prefer JSDoc for exported domain types, parsers, adapters, public services, side effects, invariants, and typed-error returns.
-
-Use `@throws` only for unrecoverable defects, framework-required behavior, or temporary `notYetImplemented` paths. Do not document expected typed errors as throws.
-
-## Configuration And Resources
-
-Parse environment/config at startup or the earliest boundary into typed config with branded/redacted values where appropriate. Do not read `process.env` throughout the app. Missing or invalid config is a startup failure with useful context.
-
-Do not put secrets in errors, traces, logs, or snapshots. Use a `Redacted<T>` wrapper for sensitive values such as tokens, API keys, passwords, raw credentials, and secrets. Prefer Effect's `Redacted.Redacted` in Effect codebases or a local `Redacted<T>` in `prelude.ts`.
-
-Avoid top-level side effects except in true entrypoint/bootstrap files. Modules should not start servers, open connections, read env, register handlers, or perform I/O at import time.
-
-Create and clean up resources explicitly in bootstrap/imperative shell code or Effect layers when using Effect. Avoid mutable singletons/global state. Constants and pure lookup tables are fine. If a framework/runtime requires a singleton, isolate it at the boundary. Inject `Clock` and `Random` services into dependency-bearing modules; pure domain functions may accept explicit `now` or random values.
-
-## Agent Checklist
-
-Before coding:
-
-- Read existing conventions for errors, schemas, tests, adapters, telemetry, and module layout.
-- Look for existing domain modules/types before creating new ones.
-- Look for existing adapters/services before creating a new one.
-- Parse inputs at the edge and use domain types internally.
-- Avoid raw DTOs, raw IDs, nullable bags, and `Partial<T>` in core/application logic.
-- Prefer typed errors as values for new expected failures.
-- Preserve existing observability/error mechanics.
-- Test through public interfaces and real seams.
-- Use `fast-check` arbitraries for generated test data when practical.
-- Add JSDoc where exported contracts need more than the signature.
-- Add ADRs for meaningful new adapters/services created after an adapter reuse audit.
+- External runtime values remain `unknown` until parsed.
+- Refined types have one trusted construction path.
+- Closed unions are handled exhaustively; open behavior uses an extensible
+  abstraction when appropriate.
+- Failure representation matches the agreed caller contract.
+- No unjustified `any`, non-null assertion, or cast was introduced.
+- Optional and `undefined` states are intentional.
+- Public exports are minimal and type-only edges are marked.
+- Imports do not trigger hidden I/O or initialization.
+- No dependency, compiler migration, ADR, or broad architectural pattern was
+  introduced merely to comply with this skill.
+- Comments and documentation record only information the code cannot express.

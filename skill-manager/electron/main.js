@@ -3,6 +3,7 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 
 const { ActiveSkillLibrary } = require("./active-skill-library");
 const { AppConfig } = require("./app-config");
+const { createEvaluationService, registerEvaluationIpc } = require("./evaluation-wiring");
 const { createDBAdapter } = require("./skill-library-db");
 const { SkillDiscovery } = require("./skill-discovery");
 const { SkillInstaller } = require("./skill-installer");
@@ -11,6 +12,13 @@ const { SkillRepositoryImporter } = require("./skill-repository-importer");
 let mainWindow = null;
 let skillLibrary = null;
 let db = null;
+let evaluationService = null;
+
+function sendEvaluationProgress(event) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("skill-manager:evaluation-progress", event);
+  }
+}
 
 function getInitialProject() {
   const arg = process.argv.find((value) => value.startsWith("--project="));
@@ -105,7 +113,12 @@ app.whenReady().then(() => {
     appConfigPath: appConfigPath(),
   });
   db.initialize();
-  appConfig.read();
+  const appConfigState = appConfig.read();
+  evaluationService = createEvaluationService({
+    appConfig: appConfigState,
+    userDataPath: app.getPath("userData"),
+    tempRootPath: app.getPath("temp"),
+  });
 
   ipcMain.handle("skill-manager:get-bootstrap", async () => ({
     initialProject: getInitialProject(),
@@ -270,6 +283,21 @@ app.whenReady().then(() => {
   ipcMain.handle("skill-manager:open-external", async (_, targetUrl) => {
     await shell.openExternal(targetUrl);
     return { ok: true };
+  });
+
+  registerEvaluationIpc(ipcMain, {
+    getService: () => evaluationService,
+    setService: (paths) => {
+      const updated = appConfig.setEvaluationCliPaths(paths || {});
+      evaluationService = createEvaluationService({
+        appConfig: updated,
+        userDataPath: app.getPath("userData"),
+        tempRootPath: app.getPath("temp"),
+      });
+      return updated.evaluation;
+    },
+    sendProgress: sendEvaluationProgress,
+    onOpenPath: (targetPath) => shell.openPath(targetPath),
   });
 
   createWindow();

@@ -1,0 +1,5 @@
+{
+  "id": "docgen-requirements",
+  "shape": "generative",
+  "description": "Requirements for a Word-document generator CLI. Stage 1 runs produce a spec and an execution plan from it."
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Review"
+  short_description: "Review and fix a feature spec or execution plan"
+  default_prompt: "Review the spec or execution plan for contradictions, holes, leftovers from earlier versions, gate ordering, readability, and execution token savings. Fix what has one correct resolution and list what needs my decision."
