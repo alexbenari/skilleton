@@ -1,7 +1,8 @@
 # Code Design Guidelines
 
 ## Purpose and scope
-
+This document specifies the rules to follow when writing code. These rules are for writing object-oriented layered systems. 
+When coding other types of applications, such as scripts, data pipelines, framework glue, or codebases built around functional or data-oriented patterns, adjust them.
 
 ## Terms
 - Layer: A part of the application with a distinct kind of responsibility, such as presentation, application orchestration, or domain behavior.
