@@ -27,11 +27,11 @@ When coding other types of applications, such as scripts, data pipelines, framew
 - Extend an existing layer, class, or method only when the new behavior fits its current responsibility or is a natural extension of it. Do not spread concerns across boundaries.
 
 ## Boundaries and layering
-- Setting layer, class, and method boundaries is a key design decision. For each feature, decide how to split it's workflow, domain behavior, state ownership, and presentation into layers, classes and methods. Consider alternatives. Have a convincing rationale for each decision, so you can defend it. 
+- Setting layer, class, and method boundaries is a key design decision. For each feature, decide how to split its workflow, domain behavior, state ownership, and presentation into layers, classes and methods. Consider alternatives. Have a convincing rationale for each decision, so you can defend it. 
 - Keep APIs small, intention-revealing, and hard to call incorrectly. 
 - A class must not expose mutable state or mutable object references that let callers bypass its invariants
 - A method should operate at one level of abstraction.
-- Before adding behavior to an existing class or module, ask whether this behavior naturally extends the existing code's responsibilites.
+- Before adding behavior to an existing class or module, ask whether this behavior naturally extends the existing code's responsibilities.
 - No two classes should have duplicate or overlapping responsibilities, and no two methods duplicate or overlapping logic.
 - Every method parameter must be used. Do not pass a parameter that can be derived directly from another parameter.
 - More than three parameters often signal missing structure, confused ownership, or weak boundaries. Look for the missing concept before adding another parameter.
@@ -48,7 +48,7 @@ When coding other types of applications, such as scripts, data pipelines, framew
 
 ## Error handling
 - Handle errors explicitly and make failure modes clear.
-- When using callbacks and event handlers, make sure the case the callaback/exception handler throws an exception is accounted for. One obvious thing to check is that any state is properly restored. 
+- When using callbacks and event handlers, make sure the case the callback/exception handler throws an exception is accounted for. One obvious thing to check is that any state is properly restored. 
 - Diagnostics, logging and error handling code should never throw unhandled exceptions or crash in general
 - Do not duplicate error message strings. If two paths generate the same error message, get the message from a single location in the code. 
 
@@ -71,7 +71,7 @@ When coding other types of applications, such as scripts, data pipelines, framew
 - Stateless UI modules are appropriate for pure layout rules, pure copy selection, pure view-model composition, or rendering helpers that do not own control behavior.
 - Each control should bind and unbind the events it owns. Truly global events should belong to a narrowly named application-level controller;
 - Web applications:
-    - A component can own it's DOM but it must not access another component's DOM
+    - A component can own its DOM but it must not access another component's DOM
 
 ### Application controller layer
 - The application controller layer orchestrates application workflows.
