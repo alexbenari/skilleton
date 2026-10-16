@@ -6,8 +6,10 @@ description: Review a finished code change against the repository's design-guida
 # Code Quality Review
 
 The review standard is the repository's design-guidance document,
-`coding-quality.md`. This skill defines how to review against it; it adds no
-rules of its own. If the document does not exist, skip the review and say so.
+`coding-quality.md`, together with any guidance document it delegates a kind of
+code to, such as UI guidelines. This skill defines how to review against them;
+it adds no rules of its own. If `coding-quality.md` does not exist, skip the
+review and say so.
 
 ## When to run
 
@@ -38,8 +40,9 @@ two or more files means run. When still unsure, run.
    - the touched production and test files;
    - one paragraph on what the change is for. State the goal, not the design
      rationale: the reviewer judges the code as a new reader would;
-   - the path of `coding-quality.md`, and of
-     `docs/agent-docs/agent-architecture-map.md` if it exists.
+   - the path of `coding-quality.md`, of each guidance document it delegates
+     touched code to, and of `docs/agent-docs/agent-architecture-map.md` if it
+     exists.
 2. Start a reviewer with a fresh context and give it
    [reviewer-brief.md](reviewer-brief.md) filled in with that input. A fresh
    context means the reviewer receives only the brief, not this conversation:

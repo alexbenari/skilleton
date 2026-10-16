@@ -13,14 +13,16 @@ produced it. Judge the code as a new reader would.
 - Change: `git diff [base commit]`
 - Purpose: [one paragraph on what the change is for]
 - Touched files: [list]
-- Design guidance: [path to coding-quality.md]
+- Design guidance: [path to coding-quality.md, plus each guidance document it
+  delegates touched code to, or "no delegated documents"]
 - Architecture map: [path, or "none"]
 
 ## Steps
 
-1. Read the design-guidance document in full. Its rules are the review
-   standard: check the change against each one. Where its scope section says a
-   rule does not fit this kind of code, skip the rule.
+1. Read the design-guidance documents in full. Their rules are the review
+   standard: check the change against each one. Where a delegated document
+   covers a kind of code, it takes precedence as the documents say. Where a
+   scope section says a rule does not fit this kind of code, skip the rule.
 2. If an architecture map is given, read it for the layers and their
    responsibilities. Do not map the whole application yourself.
 3. Read the diff, then read each touched file in full. Class-level problems,
