@@ -15,12 +15,12 @@ When coding other types of applications, such as scripts, data pipelines, framew
 
 ## Core principles
 - Prefer designs that keep behavior close to the state and invariants they govern.
-- Prefer object-oriented abstractions. Do not force classes when simpler structures are the more natural fit. For example: [enums, struct, ...]
+- Prefer object-oriented abstractions. Do not force classes when simpler structures such as enums, structs or records or others are the more natural fit.
 - A class should represent a single concept or action. Do not grow god classes.
 - In object-oriented code, a free function (a function that is not part of a class) is a design smell. It requires an explicit ownership decision; in the rare cases it is justified, a brief comment explains why.
 - Prefer interfaces and capability-based polymorphism over logic that branches on type or kind - the behavior should live on the owning abstraction instead.
 - Prefer explicit dependencies and clear ownership of state.
-- Prefer expressing dependencies as injection of interfaces
+- Prefer expressing dependencies as injection of interfaces.
 - Design for testability: class dependencies should be mockable. Interfaces enable this.
 - Avoid over-engineering and abstractions that do not earn their cost. Small duplication is often better than premature generalization.
 - Keep methods and classes at a consistent level of abstraction. If a method mixes workflow steps, domain rules, and low-level mechanics, split it.
@@ -29,7 +29,7 @@ When coding other types of applications, such as scripts, data pipelines, framew
 ## Boundaries and layering
 - Setting layer, class, and method boundaries is a key design decision. For each feature, decide how to split its workflow, domain behavior, state ownership, and presentation into layers, classes and methods. Consider alternatives. Have a convincing rationale for each decision, so you can defend it. 
 - Keep APIs small, intention-revealing, and hard to call incorrectly. 
-- A class must not expose mutable state or mutable object references that let callers bypass its invariants
+- A class must not expose mutable state or mutable object references that let callers bypass its invariants.
 - A method should operate at one level of abstraction.
 - Before adding behavior to an existing class or module, ask whether this behavior naturally extends the existing code's responsibilities.
 - No two classes should have duplicate or overlapping responsibilities, and no two methods duplicate or overlapping logic.
@@ -49,7 +49,7 @@ When coding other types of applications, such as scripts, data pipelines, framew
 ## Error handling
 - Handle errors explicitly and make failure modes clear.
 - When using callbacks and event handlers, make sure the case the callback/exception handler throws an exception is accounted for. One obvious thing to check is that any state is properly restored. 
-- Diagnostics, logging and error handling code should never throw unhandled exceptions or crash in general
+- Diagnostics, logging and error handling code should never throw unhandled exceptions or crash in general.
 - Do not duplicate error message strings. If two paths generate the same error message, get the message from a single location in the code. 
 
 ## Fine-grained coding guidelines
@@ -69,9 +69,9 @@ When coding other types of applications, such as scripts, data pipelines, framew
 - Contains pure rendering and local interaction behavior, encapsulated as class backed UI controls.
 - UI controls own interaction surfaces and presentation state, not application workflow decisions.
 - Stateless UI modules are appropriate for pure layout rules, pure copy selection, pure view-model composition, or rendering helpers that do not own control behavior.
-- Each control should bind and unbind the events it owns. Truly global events should belong to a narrowly named application-level controller;
+- Each control should bind and unbind the events it owns. Truly global events should belong to a narrowly named application-level controller.
 - Web applications:
-    - A component can own its DOM but it must not access another component's DOM
+    - A component can own its DOM but it must not access another component's DOM.
 
 ### Application controller layer
 - The application controller layer orchestrates application workflows.
