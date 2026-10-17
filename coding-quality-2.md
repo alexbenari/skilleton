@@ -86,9 +86,45 @@ When coding other types of applications, such as scripts, data pipelines, framew
 
 ## Test reliability
 
-- Name each test so it explains clearly what is being tested.
-- Do not assert private DOM structure, incidental call counts, exact pixel measurements, animation frames, or timestamps unless the requirement guarantees them. Assert observable behavior and relationships; use a justified tolerance for approximate values.
-- Do not use fixed sleeps or assume a background operation finishes within a particular interval. Wait for an observable completion condition with a bounded timeout; control clocks, animations, and external responses in tests that need exact timing.
-- Do not let tests depend on execution order, shared user data, random input, live services, or machine-specific state. Give each test explicit fixtures and isolated state, and clean up what it creates.
-- Do not combine several slow or failure-prone operations in one end-to-end test under a single timeout. Keep each scenario focused; cover detailed rules in unit or integration tests and reserve end-to-end tests for essential user workflows.
-- Do not weaken assertions or only raise timeouts to make a flaky test pass. Check whether the failure reveals a product bug, then make the setup and observation deterministic. If real hardware or media timing is essential, run that check separately; if it cannot be made reliable, remove it and record the coverage gap.
+Where the project lints its tests, the linter enforces the mechanical parts of these rules and review checks the rest. Disable a lint rule only for one line, with a comment saying why.
+
+What to assert:
+
+- Each test checks a single claim that a user or caller relies on. Its name states the scenario and that claim in domain terms.
+- The one exception is an end-to-end test that follows one user workflow through several checked steps, when each step needs the state the previous one left and setting that state up again would be slow. Its name describes the workflow, and every step it names is carried out and checked. Steps that do not depend on each other belong in separate tests.
+- Assert only what the requirement guarantees: the outcome a user or caller can observe. Do not assert internal or incidental details that can change without breaking the requirement, such as private DOM structure, call counts or order, exact pixel sizes, animation frames, timestamps, durations, retry counts, size limits, or encoder settings. Where exact values are incidental, assert the relationship that matters instead: the button ends left of the window controls, not at x = 1312. When the requirement does state a value, such as a 24-pixel minimum target size, assert it, taking it from the production constant or the spec; use a justified tolerance for approximate values.
+- Every assertion reads something the code under test produced or changed. Avoid assertions on data the test set up itself, since it passes whatever the code does.
+- Assert a mock interaction only when the interaction is the contract, such as "never sends a path to the service".
+- Use exact expected values for concrete inputs. A range that admits every possible result, a substring match on an argument list, or `toThrow()` without the expected message is not an assertion.
+- Write expected values from the requirement, never by copying what the code currently outputs: a copied value locks in whatever the code does, bugs included. The exception is a characterization test that records current behavior before a restructuring; name it as one, and check each recorded value, because a wrong one is a bug to fix, not to preserve.
+
+Proving a test can fail:
+
+- See every new or changed test fail for the right reason before relying on it: write it first, or break the behavior it names and confirm it fails with a readable message. Failing only because the code does not exist yet is not enough. If the test still passes with the behavior broken, it never reaches that behavior: fix the setup, or test it at a level that can reach it.
+- Prefer stating a requirement as a positive outcome: "after the click the player is still paused", not "the click does not start playback". When it can only be negative ("never sends a file path"), the test first creates the conditions in which the forbidden thing would happen, then waits until it would have been observable; checking straight away proves nothing, and so does writing the test first.
+- When the requirement is about order, B happening only after A finishes (two writes to one file never interleave; `dispose()` resolves only after cleanup), the test must be able to see the wrong order. Hold A open, for example with a deferred promise, and check that B has not started before releasing A. Check an effect right after the call that promises it, before awaiting other work that could complete it.
+
+Timing:
+
+- Do not use fixed sleeps, size a wait to a private constant, or assume a background operation finishes within a particular interval. Wait for an observable completion condition with a bounded timeout; control clocks, animations, and external responses in tests that need exact timing.
+- After a resize, navigation, or mode change, wait for evidence that it took effect before measuring. A setup call can silently do nothing; a maximized window ignores a resize. In Playwright, prefer the retrying `expect(locator)` matchers over asserting on a value read once.
+- Do not poll a value that keeps changing on its own; make the system still, or compare against a value captured at the action. Do not count microtasks; flush fully or wait on a condition.
+
+Isolation and environment:
+
+- Do not let tests depend on execution order, shared user data, random input, live services, or machine-specific state. Give each test explicit fixtures and isolated state, and clean up what it creates. Temporary folders, profiles, and caches live under the test's own root and are removed in `finally` or `afterEach`; when the app itself writes elsewhere, give it a test-mode location instead of cleaning up after it. Restore global patches the same way, saving the original before replacing it.
+- Tests that need an optional dependency, such as a native tool, skip through one shared guard, evaluated before anything that can throw. Never resolve such dependencies at module load.
+- Only layout tests may depend on the window size; they set it explicitly and confirm it took effect. Every other test must pass at any reasonable size: target elements through locators or their boxes, never fixed coordinates, and never rely on layout that a smaller display changes. CI displays are often smaller than a desktop one.
+- Integration tests build the DOM from the shipped page or the control's own factory, never from a hand-copied skeleton. A stub honors the inputs that matter to the behavior under test, or the test uses the real collaborator.
+
+Structure and gates:
+
+- Write an end-to-end test only for a behavior that depends on something lower-level tests replace with a fake: the boundary between the app's processes, the real file system, native tools and media, the operating system's windows and full screen, or real startup and shutdown. Keep one passing path per major user workflow there. Edge cases, error variants and UI rules belong in unit tests or in integration tests that use the real page with faked services. Ask: would this test catch a bug that no unit or integration test could?
+- An end-to-end test drives real controls and reaches only states a user can reach: no injected DOM nodes, synthetic events, or clicks through something that covers the target.
+- Name a test file after the unit or workflow it tests.
+- When a production class is renamed or split, rename its tests in the same change.
+- Search for an existing test before adding one.
+- Keep shared test helpers in one support folder rather than copying them between files.
+- Every kind of check a test relies on, such as `tsc`, a native build, or a fixture generator, runs in pre-commit or CI; otherwise the test is not coverage.
+- Do not weaken assertions or raise timeouts to make a flaky test pass. Check whether the failure reveals a product bug, then take one of three outcomes and say which in the commit message: make it deterministic; move the timing-sensitive part to a level where timing can be controlled; or remove the test and record the coverage gap.
+- Never keep a test's name over a body that no longer does what the name says.

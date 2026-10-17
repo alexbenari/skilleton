@@ -1,6 +1,6 @@
 ---
 name: testing-discipline
-description: Use when writing new tests, designing test data, naming a test, choosing what to assert, or writing test helpers/mocks/fixtures
+description: Use when writing new tests, repairing a flaky or failing test, designing test data, naming a test, choosing what to assert, or writing test helpers/mocks/fixtures
 ---
 
 # Testing Discipline
@@ -22,6 +22,7 @@ Invoke when you're about to:
 - Decide what to assert in a test (exact value? structural property? both?)
 - Schedule a long-running suite (soak, perf, cross-platform matrix)
 - Hand off requirements between programmers and testers, or work on acceptance tests
+- Repair a flaky or failing test
 
 ### Non-triggers — do NOT invoke for
 
@@ -44,6 +45,17 @@ Run every step in order when writing a new test. Do not commit until step 7 is s
 5. **Choose test data that is safe in front of a customer.** Placeholder names, fake company names, sample log strings, mock error dialogs, and seeded database rows have a habit of surfacing in screenshots, demos, leaked source, and production logs. Do not use real people's names you mean to mock, do not use band names or song titles as a private joke, do not write `"don't click that again, you moron"` as a placeholder dialog, do not use four-letter words as fake stock tickers. Use boring, obviously-fake, professional data. *(Begbie, 97/25.)*
 6. **Treat testers as collaborators, not adversaries.** If your project has QA, share testing ideas with them *before* coding starts; accept their acceptance tests (Fit-style or otherwise) as input to the work; respond with implementation notes that improve their coverage. The wildcard-vs-whole-word search ambiguity is cheaper to surface in an acceptance test than in a defect ticket. The picky tester who finds the misspelled splash screen, the wrong checkbox-vs-radio, and the broken keyboard shortcut is protecting users from doubting your competence. *(Hufnagel, 97/60; Gregory, 97/92.)*
 7. **Schedule expensive tests for the hours nobody is using the build server.** Soak tests for memory leaks, performance runs that need a quiet machine, cross-platform matrices (32/64-bit × OS × protocol) — these will not fit in a pre-commit cycle. Split the suite: a small mandatory profile on commit, the heavy profiles overnight, the multi-day matrices on weekends. Hardware sitting idle on a Saturday is wasted coverage. *(Attapattu, 97/82.)*
+
+## Writing or repairing a test: the steps
+
+The rules are in `coding-quality.md` § Test reliability; read it before writing or repairing a test. Then, in addition to the checklist above:
+
+1. **Write the requirement sentence first.** One sentence saying what the user or caller relies on. The test name states it; the assertion checks it, not how the code produces it.
+2. **Find the test's home.** Search the test folders for an existing test of the behavior, and use the project's shared test helpers instead of copying setup. The project's agent documentation says where they are.
+3. **Watch it fail for the right reason.** Write the test first where you can. For existing code, break the specific behavior the test names and confirm it fails with a readable message; if it still passes, the test never reaches that behavior. For a negative test, make sure it creates the conditions and waits; for an ordering test, hold the first step open. When the property is subtle (ordering, caching, concurrency, cleanup), say in the commit message which mutation you tried.
+4. **Run new or changed end-to-end tests several times** before committing, for example with Playwright's `--only-changed --repeat-each=3`, through the project's command that rebuilds first if it has one. A test that passes once can still depend on timing or on the display size.
+5. **Run the project's test linter**, if it has one.
+6. **Repairing a flaky test:** find out first whether it shows a product bug. Then take one of the three outcomes in `coding-quality.md` and name it in the commit message. If the scenario changes, change the name.
 
 ## Red Flags
 

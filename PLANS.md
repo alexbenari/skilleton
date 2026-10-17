@@ -89,7 +89,7 @@ Every ExecPlan must include a `Skill Gates` section that lists which skills or e
 The section must cover both planning-time and execution-time work:
 
 * Planning gates: `plan-review` before each sign-off request, plus skills or guidance used before the plan records design decisions such as architecture, module boundaries, public interfaces, state ownership, refactoring strategy, test strategy, build or dependency changes, observability, error handling, security boundaries, frontend behavior, or documentation updates.
-* Execution gates: `code-quality-review` at the end of each milestone that changes production code, before its validation gate, plus skills or guidance required before implementation, tests, refactors, API changes, build changes, documentation updates, architecture changes, or completion review.
+* Execution gates: `code-quality-review` at the end of each milestone that changes production code or adds or rewrites tests, before its validation gate, `testing-discipline` before writing or repairing tests, plus skills or guidance required before implementation, tests, refactors, API changes, build changes, documentation updates, architecture changes, or completion review.
 * Availability: any expected skill that is unavailable in the current environment, plus the fallback guidance used instead.
 
 Update this section when the plan changes scope or discovers new work that triggers additional skills.
@@ -131,7 +131,8 @@ Planning-time gates:
 
 Execution-time gates:
 
-- code-quality-review: at the end of each milestone that changes production code, before its validation gate
+- code-quality-review: at the end of each milestone that changes production code or adds or rewrites tests, before its validation gate
+- testing-discipline: before writing or repairing tests
 - <Skill or guidance>: <when it must be used during implementation>
 
 Unavailable skills or fallbacks:
@@ -177,6 +178,8 @@ Describe the existing system for a newcomer. Name key files and data flow.
 ### Validation
 
 Gates: G1. <Detail that does not fit the gates table, or nothing>
+
+New or changed tests: <for each, the requirement it protects and how it was seen failing: written first, or the mutation tried>
 
 ### Rollback/Containment
 

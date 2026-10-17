@@ -1,6 +1,6 @@
 ---
 name: code-quality-review
-description: Review a finished code change against the repository's design-guidance document (coding-quality.md) with a fresh-context reviewer, then fix what has one correct resolution. Checks design and code quality, not correctness bugs. Use after every non-trivial code change, before reporting it done or committing it, at the end of each execution-plan milestone that changes production code, or when the user asks for a code quality review.
+description: Review a finished code change against the repository's design-guidance document (coding-quality.md) with a fresh-context reviewer, then fix what has one correct resolution. Checks design and code quality, not correctness bugs. Use after every non-trivial code change, before reporting it done or committing it, at the end of each execution-plan milestone that changes production code or adds or rewrites tests, or when the user asks for a code quality review.
 ---
 
 # Code Quality Review
@@ -15,8 +15,8 @@ review and say so.
 
 Run once per logical change, after it builds and its tests pass, and before
 reporting it done or committing it. In an execution plan, run it at the end of
-each milestone that changes production code, before the milestone's validation
-gate, so the gate also covers the review's fixes.
+each milestone that changes production code or adds or rewrites tests, before
+the milestone's validation gate, so the gate also covers the review's fixes.
 
 A change is non-trivial when it creates, splits, merges, moves, or redefines a
 responsibility. That includes a change that:
@@ -25,11 +25,13 @@ responsibility. That includes a change that:
 - changes a signature or public interface that has callers;
 - moves code between classes, files, or layers;
 - replaces an algorithm or rewrites a function's control flow;
-- adds a feature.
+- adds a feature;
+- adds or rewrites tests, including test-only changes. The reviewer checks
+  them against `coding-quality.md` § Test reliability.
 
-Skip test-only, documentation, configuration, and formatting changes,
-mechanical renames, and a localized fix inside one function that leaves its
-signature unchanged. If unsure, about 50 or more changed production lines across
+Skip documentation, configuration, and formatting changes, mechanical renames,
+a one-line test fix whose intent is unchanged, and a localized fix inside one
+function that leaves its signature unchanged. If unsure, about 50 or more changed production lines across
 two or more files means run. When still unsure, run.
 
 ## Workflow

@@ -54,7 +54,7 @@ Apply that guidance as follows:
 - If the repository guidance conflicts with framework conventions, correctness, security, explicit user instructions, or hard technical constraints, follow the constraint and explain the deviation briefly.
 - Do not apply the repository guidance mechanically; use judgment where the document leaves room for interpretation.
 
-After each non-trivial code change, run the project-local `code-quality-review` skill before reporting the change done or committing it, and include its report. A change is non-trivial when it adds a class, module, or production file, changes a public interface, moves code between classes or layers, replaces an algorithm, or adds a feature; the skill defines the full trigger. In an execution plan, run it at the end of each milestone that changes production code, before the milestone's validation gate. If `code-quality-review` is unavailable, review the change against the design-guidance document yourself and say so in the report.
+After each non-trivial code change, run the project-local `code-quality-review` skill before reporting the change done or committing it, and include its report. A change is non-trivial when it adds a class, module, or production file, changes a public interface, moves code between classes or layers, replaces an algorithm, adds a feature, or adds or rewrites tests; the skill defines the full trigger. In an execution plan, run it at the end of each milestone that changes production code or adds or rewrites tests, before the milestone's validation gate. If `code-quality-review` is unavailable, review the change against the design-guidance document yourself and say so in the report.
 
 
 ## Skill use during planning and execution
@@ -73,7 +73,7 @@ Before claiming a feature or fix is complete, identify the user-visible goal or 
 
 Verification must prove that goal, not just prove that code changed or tests pass.
 
-Use automated verification when unit, integration, or e2e tests can directly prove the goal. If the goal involves perceived UX, real app behavior, performance, media playback, layout, or other behavior not fully covered by tests, perform targeted manual QA in the actual app and report what was verified.
+Use automated verification when unit, integration, or e2e tests can directly prove the goal. A new or changed test counts as evidence only after it has been seen failing for the right reason (`coding-quality.md` § Test reliability). If the goal involves perceived UX, real app behavior, performance, media playback, layout, or other behavior not fully covered by tests, perform targeted manual QA in the actual app and report what was verified.
 
 Do not claim completion from implementation-level evidence when the requested goal is user-visible behavior.
 

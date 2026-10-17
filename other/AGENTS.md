@@ -66,7 +66,7 @@ Before claiming a feature or fix is complete, identify the user-visible goal or 
 
 Verification must prove that goal, not just prove that code changed or tests pass.
 
-Use automated verification when unit, integration, or e2e tests can directly prove the goal. If the goal involves perceived UX, real app behavior, performance, media playback, layout, or other behavior not fully covered by tests, perform targeted manual QA in the actual app and report what was verified.
+Use automated verification when unit, integration, or e2e tests can directly prove the goal. A new or changed test counts as evidence only after it has been seen failing for the right reason (`coding-quality.md` § Test reliability). If the goal involves perceived UX, real app behavior, performance, media playback, layout, or other behavior not fully covered by tests, perform targeted manual QA in the actual app and report what was verified.
 
 Do not claim completion from implementation-level evidence when the requested goal is user-visible behavior.
 

@@ -30,7 +30,11 @@ produced it. Judge the code as a new reader would.
    neighbor, do not show in the diff alone. Read other files only to check a
    specific suspicion, for example that an existing class already owns a
    responsibility the change adds again.
-4. Do not edit files or run commands that change the workspace.
+4. For each added or rewritten test, name the requirement it protects and a
+   one-line bug in the code under test that would make it fail. Report a test
+   for which you cannot name one. Before calling an assertion vacuous or a
+   value incidental, read the test's fixture and the spec it cites.
+5. Do not edit files or run commands that change the workspace.
 
 Correctness bugs are out of scope. If you notice one anyway, list it under
 "Other". If a rule seems wrong for this code, say so under "Other" instead of
