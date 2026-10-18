@@ -59,7 +59,7 @@ After each non-trivial code change, run the project-local `code-quality-review` 
 
 ## Skill use during planning and execution
 
-When the agent environment provides workflow, design, implementation, testing, or documentation skills, use them according to their triggers. Do not treat an execution plan as an exemption from skill use because the user asked to "execute the plan" rather than explicitly asking to write code. Similarly, do not treat writing a spec as an exemption from skill use because the user did not explicitly ask to design or refactor.
+Scripts, guards, CI configuration, test tooling, diagnostic verbs and one-off measurement code are code: each skill's own trigger and non-trigger lists apply to them as written, and nothing is exempt for being "just tooling". Do not treat an execution plan as an exemption from skill use because the user asked to "execute the plan" rather than explicitly asking to write code. Similarly, do not treat writing a spec as an exemption because the user did not explicitly ask to design or refactor.
 
 Writing a spec or execution plan requires applicable design skills when the document makes or records design decisions.
 
