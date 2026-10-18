@@ -57,6 +57,16 @@ Apply that guidance as follows:
 After each non-trivial code change, run the project-local `code-quality-review` skill before reporting the change done or committing it, and include its report. A change is non-trivial when it adds a class, module, or production file, changes a public interface, moves code between classes or layers, replaces an algorithm, adds a feature, or adds or rewrites tests; the skill defines the full trigger. In an execution plan, run it at the end of each milestone that changes production code or adds or rewrites tests, before the milestone's validation gate. If `code-quality-review` is unavailable, review the change against the design-guidance document yourself and say so in the report.
 
 
+## Code comments
+
+Comments are rare, phrased in simple language, and at most two short sentences. Write one only
+when the reader needs context that cannot be deduced from the code itself, or when the
+implementation is deliberately hacky or counterintuitive. Never reference external documents,
+specs, calibration records, decision dates, or people — state the constraint itself, in place.
+Do not narrate what the code does, why a change is correct, or where a value came from. When
+touching existing code that carries verbose comments, trimming or deleting them is part of the
+change.
+
 ## Skill use during planning and execution
 
 Scripts, guards, CI configuration, test tooling, diagnostic verbs and one-off measurement code are code: each skill's own trigger and non-trigger lists apply to them as written, and nothing is exempt for being "just tooling". Do not treat an execution plan as an exemption from skill use because the user asked to "execute the plan" rather than explicitly asking to write code. Similarly, do not treat writing a spec as an exemption because the user did not explicitly ask to design or refactor.
