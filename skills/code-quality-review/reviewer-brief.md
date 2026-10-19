@@ -42,7 +42,9 @@ silently skipping it.
 
 ## Return
 
-Keep the report under about 60 lines.
+Report every finding, one line each. Keep Clean to one line per area and Other
+to a few lines. Do not summarize the change, restate the diff, or explain rules
+back.
 
 ```markdown
 ## Findings
