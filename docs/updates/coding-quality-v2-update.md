@@ -47,9 +47,10 @@ Fetch both. Strip a leading UTF-8 BOM if present, and compare ignoring line endi
    most two short sentences, never reference external documents, specs, dates or people). Check
    that `CLAUDE.md` and `AGENTS.md` each have a `## Code comments` section saying this. If one is
    missing, add the section from skilleton's
-   https://raw.githubusercontent.com/alexbenari/skilleton/master/CLAUDE.md. v2's `## Comments`
-   still lets a doc block hold a "reference to external authority". Report that this contradicts
-   the instruction-file rule. Leave the wording as it is unless the user says otherwise.
+   https://raw.githubusercontent.com/alexbenari/skilleton/master/CLAUDE.md. If the project
+   installed v2 before this fix, its `## Comments` section may still let a doc block hold "a
+   non-obvious reason, constraint, or reference to external authority". Change that to "a
+   non-obvious reason or constraint".
 
 6. **Check references.** Search the repository for `coding-quality` and for `§ Test reliability`.
    - Links to `coding-quality.md` and its `§ Test reliability` section still work; leave them.
