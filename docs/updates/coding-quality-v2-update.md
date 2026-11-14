@@ -21,8 +21,9 @@ Fetch both. Strip a leading UTF-8 BOM if present, and compare ignoring line endi
    an older or newer copy of the shared text. List the project-specific changes. If you can't tell
    which kind a difference is, ask the user rather than guessing.
 
-3. **Archive the current version.** Rename the project's file to `coding-quality-v1.md` next to it
-   using `git mv`, so history follows it. Do not edit the archived copy.
+3. **Archive the current version.** Copy the project's file, unchanged, to `coding-quality-v1.md`
+   next to it. Git records this as a new file, not a rename, because v2 takes over the old path.
+   The old version's history stays under `coding-quality.md`.
 
 4. **Install v2.** Write the skilleton v2 text as the new `coding-quality.md`. Keep the project's
    line-ending convention. Then put back each project-specific change from step 2 in the matching
