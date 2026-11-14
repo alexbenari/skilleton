@@ -1,10 +1,8 @@
 # Code Design Guidelines
 
 ## Purpose and scope
-- This document applies primarily to long-lived application code in layered systems.
-- It assumes object-oriented abstractions are often a good fit, but it is not a mandate to force everything into classes.
-- Adapt these guidelines rather than applying them literally to one-off scripts, tests (except § Test reliability, which is written for them), migrations, data pipelines, framework glue, or codebases built around functional or data-oriented patterns.
-- Optimize first for clarity, correctness, cohesion, and changeability.
+This document specifies the rules to follow when writing code. These rules are for writing object-oriented layered systems. 
+When coding other types of applications, such as scripts, data pipelines, framework glue, or codebases built around functional or data-oriented patterns, adjust them.
 
 ## Terms
 - Layer: A part of the application with a distinct kind of responsibility, such as presentation, application orchestration, or domain behavior.
@@ -17,68 +15,74 @@
 
 ## Core principles
 - Prefer designs that keep behavior close to the state and invariants they govern.
-- Prefer object-oriented abstractions when they improve encapsulation, ownership, and boundaries. Do not force classes when simpler structures or functions are the more natural fit.
-- Aim for high cohesion. A class or module should have one cohesive reason to change.
-- Prefer interfaces and capability-based polymorphism over business logic that branches on type or kind when the behavior can live on the owning abstraction instead.
+- Prefer object-oriented abstractions. Do not force classes when simpler structures such as enums, structs or records or others are the more natural fit.
+- A class should represent a single concept or action. Do not grow god classes.
+- In object-oriented code, a free function (a function that is not part of a class) is a design smell. It requires an explicit ownership decision; in the rare cases it is justified, a brief comment explains why.
+- Prefer interfaces and capability-based polymorphism over logic that branches on type or kind - the behavior should live on the owning abstraction instead.
 - Prefer explicit dependencies and clear ownership of state.
-- Avoid abstractions that do not earn their cost. Small duplication is often better than premature generalization.
+- Prefer expressing dependencies as injection of interfaces.
+- Design for testability: class dependencies should be mockable. Interfaces enable this.
+- Avoid over-engineering and abstractions that do not earn their cost. Small duplication is often better than premature generalization.
 - Keep methods and classes at a consistent level of abstraction. If a method mixes workflow steps, domain rules, and low-level mechanics, split it.
-- Extend an existing layer, class, or method only when the new behavior fits its current responsibility or is a natural extension of it. Avoid smearing concerns across boundaries.
+- Extend an existing layer, class, or method only when the new behavior fits its current responsibility or is a natural extension of it. Do not spread concerns across boundaries.
 
 ## Boundaries and layering
-- Setting layer, class, and method boundaries well is central to good design. For each feature, decide deliberately where workflow, domain behavior, state ownership, and presentation belong.
-- Each layer should own one kind of concern. For example, do not let presentation code drift into application orchestration, and do not let orchestration absorb domain behavior that belongs deeper in the model.
-- A boundary should make misuse difficult. Keep APIs small, intention-revealing, and hard to call incorrectly.
-- A method should operate at one level of abstraction. A class should gather behavior that belongs together. A layer should group components with the same kind of responsibility.
-- Before adding behavior to an existing class or module, ask whether it shares the same reason to change. If not, create a separate abstraction instead.
-- Own state in the right place and enforce invariants at the boundary that owns them.
-- Dependencies should point in the right direction. Do not bypass layers.
-- Every parameter should be used. Do not make a method carry duplicate inputs when one value can be derived from another.
-- Functions with more than three arguments often signal missing structure, confused ownership, or weak boundaries.
+- Setting layer, class, and method boundaries is a key design decision. For each feature, decide how to split its workflow, domain behavior, state ownership, and presentation into layers, classes and methods. Consider alternatives. Have a convincing rationale for each decision, so you can defend it. 
+- Keep APIs small, intention-revealing, and hard to call incorrectly. 
+- A class must not expose mutable state or mutable object references that let callers bypass its invariants.
+- A method should operate at one level of abstraction.
+- Before adding behavior to an existing class or module, ask whether this behavior naturally extends the existing code's responsibilities.
+- No two classes should have duplicate or overlapping responsibilities, and no two methods duplicate or overlapping logic.
+- Every method parameter must be used. Do not pass a parameter that can be derived directly from another parameter.
+- More than three parameters often signal missing structure, confused ownership, or weak boundaries. Look for the missing concept before adding another parameter.
 
 ## Naming and code shape
 - Name classes and modules by responsibility, not by implementation details.
+- Interface names should start with "I". E.g. IAppSurface, not AppSurface.
 - When a responsibility changes materially, rename the class or module to match it.
-- Files that contain a single primary class should usually be named after that class.
+- Files that contain a single primary class should be named after that class.
 - Name methods by what they accomplish, not how they do it.
 - Name variables by the role they play in the current scope.
-- Keep names clear, proportional, and aligned with responsibility.
-- Prefer code that a reader can understand quickly, with control flow that is easy to follow, over clever compactness.
+- Name fields by what they hold.
+- Prefer code that a reader can understand quickly over clever compactness.
 
 ## Error handling
 - Handle errors explicitly and make failure modes clear.
+- When using callbacks and event handlers, make sure the case the callback/exception handler throws an exception is accounted for. One obvious thing to check is that any state is properly restored. 
+- Diagnostics, logging and error handling code should never throw unhandled exceptions or crash in general.
+- Do not duplicate error message strings. If two paths generate the same error message, get the message from a single location in the code. 
+
+## Fine-grained coding guidelines
+- Avoid shallow constructor wrapper functions - initialize directly instead. 
+- Avoid obvious performance or memory inefficiencies, but do not trade clarity for speculative micro-optimizations.
 
 ## Comments
 
-- Comments are rare, phrased in simple language, and at most two short sentences: write one only when the reader needs context that cannot be deduced from the code itself, or when the implementation is deliberately hacky or counterintuitive.
-- Never reference external documents, specs, calibration records, decision dates, or people in a comment — state the constraint itself, in place.
 - Do not emit introductory doc blocks on methods, classes, properties or enums — C# `<summary>`/`<param>`, JSDoc `/** … @param */`, Python docstrings, or the equivalent in any language. This is a rule, not a preference.
 - Do not comment an enum at all — neither the type nor its members, in any comment form. A reason worth keeping belongs on the code that acts on the values.
-- Invest in the name instead: precise method and parameter names already say what the block would, without the volume that makes surrounding code harder to read, and without going stale as the code changes. Needing a doc block to explain what something does is a signal that the name is wrong.
-- Keep a doc block only where it records something the signature cannot: a non-obvious reason or constraint. Prefer moving that reason into the code as a one-sentence why-comment at the place it applies.
-- When removing existing blocks, preserve any such reason rather than deleting it with the block.
+- Keep a doc block only where it records something the signature cannot: a non-obvious reason, constraint, or reference to external authority. Prefer moving that reason into the code as a why-comment at the place it applies.
 - A docstring the runtime reads is behavior, not documentation, and stays — CLI help text (Typer, Click, argparse), MCP tool descriptions, and anything else surfaced to a user or a model at run time. If a consumer requires generated API reference documentation, raise it as a deviation rather than assuming the exception.
 
 ## Layer guidance
-### Presentation layer
-- Keep pure rendering and local interaction behavior in the UI layer.
-- UI components should own interaction surfaces and presentation state, not application workflow decisions.
+
+### Presentation/UI layer
+- Contains pure rendering and local interaction behavior, encapsulated as class backed UI controls.
+- UI controls own interaction surfaces and presentation state, not application workflow decisions.
 - Stateless UI modules are appropriate for pure layout rules, pure copy selection, pure view-model composition, or rendering helpers that do not own control behavior.
-- If the codebase uses class-backed controls, keep those classes focused on a concrete UI control and its local behavior. Do not treat that pattern as mandatory across every UI surface.
+- Each control should bind and unbind the events it owns. Truly global events should belong to a narrowly named application-level controller.
+- Web applications:
+    - A component can own its DOM but it must not access another component's DOM.
 
 ### Application controller layer
-- The application controller layer should orchestrate application workflows.
+- The application controller layer orchestrates application workflows.
 - It may read domain state in order to drive workflow, but reading domain state alone does not make code orchestration.
 - Do not place UI rendering concerns or reusable presentation logic in the application controller layer.
 - Do not move domain rules into the controller layer just because the controller is already coordinating a flow.
 - When a workflow needs the outcome of a user interaction to continue, the interaction returns that outcome to its caller, for example as a promise or a result callback. Do not record the caller's intent in shared state for the completing component to inspect; a callee must not know which caller's workflow it resumes. Every exit path, including cancel, Escape, and closing by other means, must settle the result.
 
 ## Tradeoffs and exceptions
-- Prefer free functions when behavior is genuinely stateless, cross-cutting, or more idiomatic in the language or framework.
 - Prefer duplication over abstraction when the shared pattern is still unstable or the abstraction would obscure intent.
-- A class may own multiple closely related behaviors if they change together and reinforce one responsibility.
 - Follow framework conventions unless there is a strong reason not to. Local design preferences should not fight the platform without a clear payoff.
-- Avoid obvious performance or memory inefficiencies, but do not trade away clarity for speculative micro-optimizations.
 
 ## Test reliability
 
