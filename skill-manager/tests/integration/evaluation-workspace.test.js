@@ -275,6 +275,126 @@ test("prepare gives each repetition its own workspace from the same snapshot", (
   }
 });
 
+// Build tools embed the workspace's absolute path in what they produce, and
+// those outputs are copied into the review bundle.
+test("a run's workspace path does not name the arm that ran in it", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const target = makeTarget(path.join(tempRoot, "fixture"));
+    const workspace = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") });
+
+    for (const role of ["reference", "candidate"]) {
+      const prepared = workspace.prepare({ evaluationId: "eval-1", role, runIndex: 1, target });
+
+      const pathBelowTempRoot = path.relative(tempRoot, prepared.workspacePath);
+      assert.equal(
+        pathBelowTempRoot.includes(role),
+        false,
+        `${pathBelowTempRoot} names the ${role} arm`
+      );
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+// A name that could be recomputed from the role would identify the arm just as
+// the role itself did.
+test("a second workspace instance does not arrive at the same directory for the same arm", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const target = makeTarget(path.join(tempRoot, "fixture"));
+    const run = { evaluationId: "eval-1", role: "candidate", runIndex: 1, target };
+
+    const first = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") }).prepare(run);
+    const second = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") }).prepare(run);
+
+    assert.notEqual(second.workspacePath, first.workspacePath);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("the two arms of one evaluation prepare separate workspaces", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const target = makeTarget(path.join(tempRoot, "fixture"));
+    const workspace = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") });
+
+    const reference = workspace.prepare({
+      evaluationId: "eval-1",
+      role: "reference",
+      runIndex: 1,
+      target,
+    });
+    fs.writeFileSync(path.join(reference.workspacePath, "scratch.txt"), "from the reference", "utf8");
+    workspace.prepare({ evaluationId: "eval-1", role: "candidate", runIndex: 1, target });
+
+    assert.equal(
+      fs.readFileSync(path.join(reference.workspacePath, "scratch.txt"), "utf8"),
+      "from the reference"
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+// The home is created once per arm, before the arm's first run is prepared.
+test("preparing a run leaves the arm's agent home in place", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const target = makeTarget(path.join(tempRoot, "fixture"));
+    const workspace = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") });
+    const arm = { evaluationId: "eval-1", role: "candidate" };
+    const credentials = path.join(workspace.agentHomePath(arm), "auth.json");
+    writeFile(credentials, "{}\n");
+
+    workspace.prepare({ ...arm, runIndex: 1, target });
+
+    assert.equal(fs.readFileSync(credentials, "utf8"), "{}\n");
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("discard refuses an evaluation id that points outside the evaluation root and removes nothing", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const workspace = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") });
+    const outsideFile = path.join(tempRoot, "runs", "unrelated", "notes.txt");
+    writeFile(outsideFile, "not an evaluation run\n");
+
+    assert.throws(
+      () => workspace.discard(path.join("..", "unrelated")),
+      (error) =>
+        error instanceof EvaluationWorkspaceError && error.message.includes("single folder name")
+    );
+
+    assert.equal(fs.readFileSync(outsideFile, "utf8"), "not an evaluation run\n");
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("discard refuses an empty evaluation id, which would name the root of every evaluation", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const workspace = new EvaluationWorkspace({ tempRootPath: path.join(tempRoot, "runs") });
+    const otherEvaluationFile = path.join(workspace.baseFor("eval-2"), "arm-0123456789ab", "notes.txt");
+    writeFile(otherEvaluationFile, "another evaluation's run\n");
+
+    assert.throws(
+      () => workspace.discard(""),
+      (error) =>
+        error instanceof EvaluationWorkspaceError && error.message.includes("single folder name")
+    );
+
+    assert.equal(fs.readFileSync(otherEvaluationFile, "utf8"), "another evaluation's run\n");
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("prepare initializes a Git repository only when the target asks for one", () => {
   const tempRoot = makeTempRoot();
   const initCalls = [];

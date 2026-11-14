@@ -208,6 +208,14 @@ test("EvaluationDefinition accepts reviewerRole user without an evaluation model
   assert.equal(definition.evaluationModel, null);
 });
 
+test("EvaluationDefinition versionedId names the definition and its version", () => {
+  const definition = new EvaluationDefinition(
+    definitionFields({ id: "code-review-effort", version: 3 })
+  );
+
+  assert.equal(definition.versionedId(), "code-review-effort-v3");
+});
+
 test("EvaluationDefinition round-trips through toJSON and fromJSON", () => {
   const definition = new EvaluationDefinition(
     definitionFields({

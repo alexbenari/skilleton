@@ -30,7 +30,6 @@ class EvaluationService {
     isolatedHome,
     runner,
     checkRunner,
-    tempRootPath,
     fileSystem = fs,
     scanAmbient = scanAmbientGuidance,
   }) {
@@ -40,7 +39,6 @@ class EvaluationService {
     this.isolatedHome = isolatedHome;
     this.runner = runner;
     this.checkRunner = checkRunner;
-    this.tempRootPath = tempRootPath;
     this.fileSystem = fileSystem;
     this.scanAmbient = scanAmbient;
     this.builder = new EvaluationDefinitionBuilder({ catalog, fileSystem });
@@ -123,20 +121,14 @@ class EvaluationService {
   homeFor(definition, role, agent) {
     return this.isolatedHome.create({
       agent,
-      homePath: path.join(
-        this.tempRootPath,
-        "skill-manager-evaluation",
-        definition.id,
-        role,
-        `home-${agent}`
-      ),
+      homePath: this.workspace.agentHomePath({ evaluationId: definition.versionedId(), role }),
     });
   }
 
   async runOnce({ definition, role, runIndex, target, scenario, home, agentVersion, onProgress, signal }) {
     const arm = definition.armFor(role);
     const prepared = this.workspace.prepare({
-      evaluationId: `${definition.id}-v${definition.version}`,
+      evaluationId: definition.versionedId(),
       role,
       runIndex,
       target,
@@ -223,7 +215,7 @@ class EvaluationService {
       );
     }
     const armResult = new ArmResult({
-      id: `${definition.id}-v${definition.version}-${role}-${Date.now()}`,
+      id: `${definition.versionedId()}-${role}-${Date.now()}`,
       definitionId: definition.id,
       definitionVersion: definition.version,
       role,
@@ -265,6 +257,9 @@ class EvaluationService {
     const controller = new AbortController();
     this.cancellations.set(definitionId, controller);
     try {
+      // An earlier process named its arm directories differently, so preparing
+      // this evaluation's runs would never overwrite them.
+      this.workspace.discard(definition.versionedId());
       const arms = {};
       for (const role of ARM_ROLES) {
         this.emit(onProgress, { phase: "arm-started", role });
@@ -279,7 +274,7 @@ class EvaluationService {
         });
       }
       const comparison = assertComparable(arms.reference, arms.candidate);
-      const comparisonId = `${definition.id}-v${definition.version}-${Date.now()}`;
+      const comparisonId = `${definition.versionedId()}-${Date.now()}`;
       const bundle = buildReviewBundle({
         reference: arms.reference,
         candidate: arms.candidate,

@@ -73,6 +73,7 @@ function storedRun({
   evidence = null,
   checks = [],
   manifest = null,
+  workspacePath = null,
   retainedWorkspacePath = null,
   activationArtifacts = null,
 } = {}) {
@@ -96,7 +97,7 @@ function storedRun({
     checks,
     manifest,
     activation: activationArtifacts === null ? null : { artifacts: activationArtifacts },
-    workspacePath: null,
+    workspacePath,
     artifactsPath: null,
     retained: { workspacePath: retainedWorkspacePath, transcriptPath: null },
   };
@@ -486,6 +487,38 @@ test("no file in the review bundle names the agent, the model or the subject the
     assert.equal(bundleText.includes("codex"), false);
     assert.equal(bundleText.includes("luna"), false);
     assert.equal(bundleText.includes("writing-clean-code"), false);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("a check output that prints the run's Windows workspace path reaches the reviewer with the path removed", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const outputPath = path.join(tempRoot, "bundle");
+    const workspacePath = "C:\\Temp\\skill-manager-evaluation\\invoice-report\\candidate\\run-1\\workspace";
+    const run = storedRun({
+      workspacePath,
+      checks: [
+        {
+          checkId: "build",
+          kind: "validator",
+          status: "pass",
+          output: `report -> ${workspacePath}\\bin\\report.dll`,
+        },
+      ],
+    });
+
+    const bundle = bundleFor(outputPath, {
+      reference: referenceArm(),
+      candidate: candidateArm({ runs: [run] }),
+    });
+
+    const candidateLabel = bundle.assignment.labelFor("candidate");
+    const evidence = JSON.parse(
+      fs.readFileSync(path.join(bundle.armPath(candidateLabel), "evidence.json"), "utf8")
+    );
+    assert.equal(evidence.runs[0].checks[0].output, "report -> [redacted]\\bin\\report.dll");
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

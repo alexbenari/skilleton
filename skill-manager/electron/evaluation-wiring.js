@@ -33,7 +33,6 @@ function createEvaluationService({ appConfig = null, userDataPath = null, tempRo
     isolatedHome: new IsolatedAgentHome(),
     runner: new AgentRunner({ adapters: buildAdapters(cliPaths, env) }),
     checkRunner: new CheckRunner(),
-    tempRootPath,
   });
 }
 

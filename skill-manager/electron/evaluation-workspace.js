@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
@@ -67,10 +68,37 @@ class EvaluationWorkspace {
     this.tempRootPath = tempRootPath;
     this.fileSystem = fileSystem;
     this.execFile = execFile;
+    this.armNamingKey = crypto.randomBytes(16);
   }
 
+  // Run directories are created and removed recursively under this folder, so
+  // an id that resolves anywhere else would delete unrelated files.
   baseFor(evaluationId) {
+    const isSingleFolderName =
+      typeof evaluationId === "string" &&
+      !["", ".", ".."].includes(evaluationId) &&
+      path.basename(evaluationId) === evaluationId;
+    if (!isSingleFolderName) {
+      throw new EvaluationWorkspaceError(
+        `Evaluation id ${JSON.stringify(evaluationId)} must be a single folder name.`
+      );
+    }
     return path.join(this.tempRootPath, WORKSPACE_ROOT_NAME, evaluationId);
+  }
+
+  // Build tools embed the workspace path in their outputs, which the reviewer
+  // gets, so the name must not be derivable from the role.
+  armDirectoryName(role) {
+    const digest = crypto.createHmac("sha256", this.armNamingKey).update(role).digest("hex");
+    return `arm-${digest.slice(0, 12)}`;
+  }
+
+  armPath({ evaluationId, role }) {
+    return path.join(this.baseFor(evaluationId), this.armDirectoryName(role));
+  }
+
+  agentHomePath({ evaluationId, role }) {
+    return path.join(this.armPath({ evaluationId, role }), "home");
   }
 
   // Both agents walk upward for instruction files, so a workspace placed under
@@ -155,7 +183,7 @@ class EvaluationWorkspace {
 
   prepare({ evaluationId, role, runIndex, target, scenario = null }) {
     this.assertNoFixtureCollision(target, scenario);
-    const rootPath = path.join(this.baseFor(evaluationId), role, `run-${runIndex}`);
+    const rootPath = path.join(this.armPath({ evaluationId, role }), `run-${runIndex}`);
     const workspacePath = path.join(rootPath, "workspace");
     const artifactsPath = path.join(rootPath, "artifacts");
     this.fileSystem.rmSync(rootPath, { recursive: true, force: true });

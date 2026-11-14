@@ -287,6 +287,10 @@ class EvaluationDefinition {
     return role === "reference" ? this.referenceArm : this.candidateArm;
   }
 
+  versionedId() {
+    return `${this.id}-v${this.version}`;
+  }
+
   comparabilityKey() {
     return fingerprintValues([
       this.targetFingerprint,

@@ -133,6 +133,23 @@ function redact(text, terms) {
   return result;
 }
 
+// Works on the values rather than on serialized JSON, where a Windows path
+// has its backslashes doubled and no longer matches its own term.
+function redactStrings(value, terms) {
+  if (typeof value === "string") {
+    return redact(value, terms);
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactStrings(entry, terms));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [redact(key, terms), redactStrings(entry, terms)])
+    );
+  }
+  return value;
+}
+
 function redactionTerms(reference, candidate) {
   const terms = new Set();
   for (const stored of [reference, candidate]) {
@@ -162,9 +179,9 @@ function armEvidence(stored, terms) {
     runs: (stored.runs || []).map((run) => ({
       runIndex: run.runIndex,
       status: run.run.status,
-      evidence: JSON.parse(redact(JSON.stringify(run.evidence || null), terms)),
-      checks: JSON.parse(redact(JSON.stringify(run.checks || []), terms)),
-      manifest: JSON.parse(redact(JSON.stringify(run.manifest || null), terms)),
+      evidence: redactStrings(run.evidence || null, terms),
+      checks: redactStrings(run.checks || [], terms),
+      manifest: redactStrings(run.manifest || null, terms),
     })),
   };
 }

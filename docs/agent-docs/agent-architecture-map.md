@@ -1,6 +1,6 @@
 # Agent Architecture Map
 
-Last updated: 2026-09-20
+Last updated: 2026-11-14
 Status: canonical agent entrypoint
 
 ## Purpose
@@ -87,7 +87,7 @@ Execution:
 - `electron/evaluation-workspace.js` prepares an isolated run workspace and
   refuses any workspace or fixture that would leak guidance into both arms.
 - `electron/evaluation-activation.js` materializes a guidance set for one agent.
-- `electron/evaluation-home.js` builds a per-evaluation agent home.
+- `electron/evaluation-home.js` builds a per-arm agent home.
 - `electron/evaluation-ambient-guidance.js` records what isolation cannot
   remove and refuses a colliding evaluation.
 
@@ -117,6 +117,15 @@ Orchestration and surfaces:
 - Run workspaces execute under the OS temp directory, never inside this
   repository. Both agents walk upward for instruction files, so a workspace
   here would inherit this repo's `CLAUDE.md` and `AGENTS.md` into both arms.
+- A run directory is `<temp>/skill-manager-evaluation/<definition>-v<n>/arm-<hex>/run-<i>`,
+  and the arm's agent home is `home` beside its run directories;
+  `EvaluationWorkspace` owns both paths. The arm name is keyed per workspace
+  instance and names neither the role nor the agent, because tools embed these
+  paths in outputs the reviewer receives. To find an arm's workspace, read
+  `workspacePath` in its stored `arm.json`. A new process uses new arm names, so
+  `EvaluationService.startEvaluation` first removes what earlier processes
+  left for the same definition version; an earlier arm result's
+  `workspacePath` is then gone and only its retained copy in the store remains.
 - The catalog (`skill-manager/evaluations/`) is checked in; generated data
   (definitions, arm results, comparisons, reports) is not.
 - Isolating the agent home removes the user-global instruction file, rules,
