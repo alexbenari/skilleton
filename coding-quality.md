@@ -45,6 +45,7 @@ When coding other types of applications, such as scripts, data pipelines, framew
 - Name variables by the role they play in the current scope.
 - Name fields by what they hold.
 - Prefer code that a reader can understand quickly over clever compactness.
+- Keep lines within 120 characters, unless the project's formatter sets a different limit.
 
 ## Error handling
 - Handle errors explicitly and make failure modes clear.
@@ -55,6 +56,7 @@ When coding other types of applications, such as scripts, data pipelines, framew
 ## Fine-grained coding guidelines
 - Avoid shallow constructor wrapper functions - initialize directly instead. 
 - Avoid obvious performance or memory inefficiencies, but do not trade clarity for speculative micro-optimizations.
+- When an `if` has no `else` and its body is a single `return`, `continue`, `break` or `throw`, put it on one line without braces, as long as the statement fits within the line limit: `if (!inCorpusOrWordlist) return KnownWordVerdict.NotKnown;`, `if (sep.Length == 0) continue;`. Any other body, an `else`, or a nested `if` keeps the usual layout. Skip this where the language or its linter forbids it (e.g. Python).
 
 ## Comments
 
