@@ -1,6 +1,6 @@
 # Agent Architecture Map
 
-Last updated: 2026-11-14
+Last updated: 2026-11-20
 Status: canonical agent entrypoint
 
 ## Purpose
@@ -145,8 +145,10 @@ Orchestration and surfaces:
   (both surfaces) says otherwise. A plan-and-implement run at high effort
   needs hours: both arms of the first anchor-word run were cut off mid-work
   at 30 minutes with no run manifest written.
-- Neither CLI is on `PATH`. Paths come from `AppConfig` or the
-  `SKILL_MANAGER_CODEX_CLI` / `SKILL_MANAGER_CLAUDE_CLI` environment variables.
+- Neither CLI is on `PATH`. Paths come from the `SKILL_MANAGER_CODEX_CLI` /
+  `SKILL_MANAGER_CLAUDE_CLI` environment variables, then `AppConfig`, then
+  discovery in `evaluation-paths.js`, which tries the install locations in
+  order and, where one holds several versions, takes the most recently written.
 - Claude authenticates through `CLAUDE_CODE_OAUTH_TOKEN`, a long-lived token
   from `claude setup-token`. When that variable is set, the isolated home
   copies no credentials file (`evaluation-home.js`, `credentialSource:
@@ -155,11 +157,12 @@ Orchestration and surfaces:
   original and every other copy, which is how the standalone CLI lost its
   login on this machine.
 - The Claude desktop app is a Microsoft Store package. The CLI it bundles sits
-  under `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude\claude-code\<version>\<hash>\claude.exe`;
-  processes started by the app see it virtualized at
-  `%APPDATA%\Claude\claude-code\...`, ordinary shells do not. The standalone
-  CLI in `~/.local/bin` may lag the bundled one by several releases and
-  refuse newer model ids.
+  under `%LOCALAPPDATA%\Claude-Data\claude_<id>\claude-code\<version>\<hash>\claude.exe`
+  and discovery prefers it: the standalone CLI in `~/.local/bin` may lag it by
+  several releases and refuse newer model ids. The bundled location has moved
+  between app releases (it was under `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\...`).
+  If discovery stops finding it, read the path of the running `claude.exe`
+  process and update the pattern.
 
 ### Current metadata source of truth
 

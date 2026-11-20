@@ -2,6 +2,8 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
+const { listDirectoryNames } = require("./evaluation-fs");
+
 const CATALOG_ENV_VAR = "SKILL_MANAGER_EVALUATION_CATALOG";
 const STORE_ENV_VAR = "SKILL_MANAGER_EVALUATION_ROOT";
 const CODEX_CLI_ENV_VAR = "SKILL_MANAGER_CODEX_CLI";
@@ -28,56 +30,53 @@ function resolveStoreRoot({ env = process.env, override = null, userDataPath = n
   return path.join(appRootPath(), "evaluations-data");
 }
 
-// Neither CLI is reliably on PATH: Codex installs under a hashed directory, and
-// Claude's own installer only updates the PATH of shells started afterwards. An
-// Electron app launched from a desktop shortcut inherits neither, so the app
-// looks in the places the installers actually use before giving up.
+// An app started from a desktop shortcut finds neither CLI on PATH, so it looks
+// where the installers put them. The CLI the Claude desktop app bundles comes
+// first, because a stale standalone one refuses newer model ids.
 const CLI_SEARCH_PATHS = {
-  codex: ({ env, homeDirectory }) => [
-    path.join(env.LOCALAPPDATA || path.join(homeDirectory, "AppData", "Local"), "OpenAI", "Codex", "bin", "*", "codex.exe"),
+  codex: ({ homeDirectory, localAppData, roamingAppData }) => [
+    path.join(localAppData, "OpenAI", "Codex", "bin", "*", "codex.exe"),
     path.join(homeDirectory, ".local", "bin", "codex.exe"),
-    path.join(env.APPDATA || path.join(homeDirectory, "AppData", "Roaming"), "npm", "codex.cmd"),
+    path.join(roamingAppData, "npm", "codex.cmd"),
   ],
-  claude: ({ env, homeDirectory }) => [
+  claude: ({ homeDirectory, localAppData, roamingAppData }) => [
+    path.join(localAppData, "Claude-Data", "*", "claude-code", "*", "*", "claude.exe"),
     path.join(homeDirectory, ".local", "bin", "claude.exe"),
-    path.join(env.APPDATA || path.join(homeDirectory, "AppData", "Roaming"), "Claude", "claude-code", "*", "claude.exe"),
-    path.join(env.APPDATA || path.join(homeDirectory, "AppData", "Roaming"), "npm", "claude.cmd"),
+    path.join(roamingAppData, "npm", "claude.cmd"),
   ],
 };
 
-// The one wildcard stands for a whole path segment: Codex installs under a
-// build hash and Claude under a version number, and the newest wins.
-function newestMatch(pattern, fileSystem) {
+// Each wildcard stands for one whole folder name: a package id, a version or a
+// build hash.
+function matchesOf(pattern, fileSystem) {
   const segments = pattern.split(path.sep);
   const starIndex = segments.indexOf("*");
-  if (starIndex === -1) {
-    return fileSystem.existsSync(pattern) ? pattern : null;
-  }
+  if (starIndex === -1) return fileSystem.existsSync(pattern) ? [pattern] : [];
   const parent = segments.slice(0, starIndex).join(path.sep);
-  const remainder = segments.slice(starIndex + 1).join(path.sep);
-  if (!fileSystem.existsSync(parent)) {
-    return null;
-  }
-  const candidates = fileSystem
-    .readdirSync(parent, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(parent, entry.name, remainder))
-    .filter((candidate) => fileSystem.existsSync(candidate))
+  const remainder = segments.slice(starIndex + 1);
+  return listDirectoryNames(parent, fileSystem).flatMap((name) =>
+    matchesOf(path.join(parent, name, ...remainder), fileSystem)
+  );
+}
+
+function newestMatch(pattern, fileSystem) {
+  const newestFirst = matchesOf(pattern, fileSystem)
     .map((candidate) => ({ candidate, modifiedMs: fileSystem.statSync(candidate).mtimeMs }))
     .sort((left, right) => right.modifiedMs - left.modifiedMs);
-  return candidates.length > 0 ? candidates[0].candidate : null;
+  return newestFirst.length > 0 ? newestFirst[0].candidate : null;
 }
 
 function discoverCliPath(agent, { env = process.env, fileSystem = fs, homeDirectory = os.homedir() } = {}) {
   const build = CLI_SEARCH_PATHS[agent];
-  if (!build) {
-    return null;
-  }
-  for (const pattern of build({ env, homeDirectory })) {
+  if (!build) return null;
+  const folders = {
+    homeDirectory,
+    localAppData: env.LOCALAPPDATA || path.join(homeDirectory, "AppData", "Local"),
+    roamingAppData: env.APPDATA || path.join(homeDirectory, "AppData", "Roaming"),
+  };
+  for (const pattern of build(folders)) {
     const found = newestMatch(pattern, fileSystem);
-    if (found) {
-      return found;
-    }
+    if (found) return found;
   }
   return null;
 }
@@ -106,7 +105,6 @@ module.exports = {
   resolveStoreRoot,
   resolveCliPaths,
   discoverCliPath,
-  CLI_SEARCH_PATHS,
   CATALOG_ENV_VAR,
   STORE_ENV_VAR,
   CODEX_CLI_ENV_VAR,
