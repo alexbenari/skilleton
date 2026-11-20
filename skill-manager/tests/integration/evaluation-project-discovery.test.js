@@ -8,16 +8,7 @@ const {
   ProjectDiscoveryError,
   discoverProjectGuidance,
 } = require("../../electron/evaluation-project-discovery");
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-discovery-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-  return filePath;
-}
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 function writeSkill(rootPath, name) {
   writeFile(path.join(rootPath, name, "SKILL.md"), `---\nname: ${name}\n---\n\nGuidance.\n`);

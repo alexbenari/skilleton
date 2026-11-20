@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const { ArmResult, ArmResultError, ArmRun } = require("../../electron/evaluation-arm-result");
@@ -11,20 +10,11 @@ const { ActivationSignal, RunRecord } = require("../../electron/evaluation-agent
 const { ArtifactInventory } = require("../../electron/evaluation-evidence");
 const { CheckResult } = require("../../electron/evaluation-check-runner");
 const { AgentHome } = require("../../electron/evaluation-home");
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 const COMPARABILITY_KEY = "sha256:0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0";
 const ISOLATED_HOME_PATH = "D:\\runs\\codex-home";
 const REPORT_BUILDER_SOURCE = "def build(rows):\n    return sorted(rows)\n";
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-arm-result-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-  return filePath;
-}
 
 function skillSubject(name = "writing-clean-code") {
   return new Subject({

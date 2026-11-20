@@ -1,21 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const { CheckRunner } = require("../../electron/evaluation-check-runner");
 const { CheckDefinition } = require("../../electron/evaluation-catalog");
 const { describeWorkspace } = require("../../electron/evaluation-evidence");
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-quoting-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-}
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 function preparedFor(workspacePath) {
   return { workspacePath, isActivationArtifact: () => false };

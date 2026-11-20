@@ -5,15 +5,7 @@ const os = require("os");
 const path = require("path");
 
 const { IsolatedAgentHome, EvaluationHomeError } = require("../../electron/evaluation-home");
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-home-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-}
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 // Stands in for the user's real ~/.claude or ~/.codex: credentials next to the
 // global guidance that must not reach a run.

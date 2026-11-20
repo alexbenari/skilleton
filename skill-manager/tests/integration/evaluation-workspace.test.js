@@ -1,22 +1,13 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const {
   EvaluationWorkspace,
   EvaluationWorkspaceError,
 } = require("../../electron/evaluation-workspace");
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-workspace-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-}
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 function makeTarget(rootPath, { initializeGitRepository = false } = {}) {
   const contentPath = path.join(rootPath, "content");

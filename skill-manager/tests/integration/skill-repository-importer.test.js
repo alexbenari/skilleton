@@ -8,6 +8,7 @@ const { execFileSync } = require("child_process");
 const { SkillDiscovery } = require("../../electron/skill-discovery");
 const { SkillRepositoryImporter } = require("../../electron/skill-repository-importer");
 const { createDBAdapter } = require("../../electron/skill-library-db");
+const { writeFile } = require("../helpers/temp-files");
 
 function runGit(args, cwd) {
   return execFileSync("git", args, {
@@ -15,11 +16,6 @@ function runGit(args, cwd) {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
-}
-
-function writeFile(targetPath, content) {
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.writeFileSync(targetPath, content, "utf8");
 }
 
 function initLocalRepo(repoPath, files) {

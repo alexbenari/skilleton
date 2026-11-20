@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const {
@@ -11,6 +10,7 @@ const {
   blindingLevelFor,
   buildReviewBundle,
 } = require("../../electron/evaluation-comparison");
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 const COMPARABILITY_KEY = "sha256:0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0";
 const RUBRIC = ["correctness", "readability"];
@@ -20,16 +20,6 @@ const REFERENCE_ID = "invoice-report-effort-reference";
 const CANDIDATE_ID = "invoice-report-effort-candidate";
 const EVEN_SEED = 4;
 const ODD_SEED = 7;
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-comparison-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-  return filePath;
-}
 
 function filesUnder(directoryPath) {
   const found = [];

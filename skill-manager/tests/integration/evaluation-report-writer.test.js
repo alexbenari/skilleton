@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const {
@@ -12,15 +11,12 @@ const {
   writeReport,
 } = require("../../electron/evaluation-report-writer");
 const { ReviewRecord } = require("../../electron/evaluation-review");
+const { makeTempRoot } = require("../helpers/temp-files");
 
 const RUBRIC = ["correctness", "readability"];
 const TARGET_ID = "invoice-report";
 const SCENARIO_ID = "generate-report";
 const EQUIVALENCE_PHRASE = "Equivalent within the available evidence";
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-report-writer-"));
-}
 
 function skillSubject(name = "writing-clean-code") {
   return {

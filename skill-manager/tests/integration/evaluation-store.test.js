@@ -4,43 +4,11 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const { fingerprintText } = require("../../electron/evaluation-fingerprint");
-const {
-  GuidanceSet,
-  ArmConfiguration,
-  EvaluationDefinition,
-} = require("../../electron/evaluation-definition");
 const { EvaluationStore, EvaluationStoreError } = require("../../electron/evaluation-store");
+const { sampleDefinition } = require("../helpers/sample-definitions");
 
 function createStoreRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-store-"));
-}
-
-function arm(effort) {
-  return new ArmConfiguration({
-    agent: "codex",
-    model: "luna",
-    effort,
-    guidanceSet: new GuidanceSet([]),
-  });
-}
-
-function sampleDefinition(overrides = {}) {
-  return new EvaluationDefinition({
-    id: "code-review-effort",
-    referenceArm: arm("medium"),
-    candidateArm: arm("high"),
-    targetId: "sample-target",
-    targetFingerprint: fingerprintText("The sample target content.\n"),
-    scenarioId: "sample-scenario",
-    scenarioFingerprint: fingerprintText("The sample scenario prompt.\n"),
-    rubric: ["correctness", "structure"],
-    checks: [{ id: "unit", kind: "validator", command: "manifest:test", timeoutSeconds: 300 }],
-    checksFingerprint: fingerprintText("unit/manifest:test\n"),
-    createdAt: "2026-04-07T09:00:00.000Z",
-    notes: "First revision.",
-    ...overrides,
-  });
 }
 
 test("saveDefinition writes definitions/<id>/v1.json and loadDefinition returns an equal definition", () => {
@@ -66,7 +34,7 @@ test("saveDefinition of version 2 leaves v1 untouched and loadDefinition default
   const storeRoot = createStoreRoot();
   try {
     const store = new EvaluationStore({ rootPath: storeRoot });
-    const first = sampleDefinition();
+    const first = sampleDefinition({ notes: "First revision." });
     const second = first.withChanges({ notes: "Second revision." });
     store.saveDefinition(first);
     const firstFileContents = fs.readFileSync(
@@ -101,7 +69,7 @@ test("saveDefinition rejects a version that was already saved", () => {
   const storeRoot = createStoreRoot();
   try {
     const store = new EvaluationStore({ rootPath: storeRoot });
-    store.saveDefinition(sampleDefinition());
+    store.saveDefinition(sampleDefinition({ notes: "First revision." }));
 
     assert.throws(
       () => store.saveDefinition(sampleDefinition({ notes: "Rewritten history." })),

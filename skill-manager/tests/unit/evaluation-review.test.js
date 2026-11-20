@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const {
@@ -17,12 +16,13 @@ const { ReviewBundle, assignLabels } = require("../../electron/evaluation-compar
 const { AgentRunner } = require("../../electron/evaluation-agent-runner");
 const { ArmConfiguration, GuidanceSet } = require("../../electron/evaluation-definition");
 const { fakeAdapters } = require("../helpers/fake-agent-runner");
+const { makeTempRoot } = require("../helpers/temp-files");
 
 const RUBRIC = ["correctness", "readability"];
 const SCENARIO_PROMPT = "Add unit tests for the invoice total calculation.";
 // A real directory, because the reviewer fingerprints the bundle before and
 // after to prove it judged evidence it did not alter.
-const BUNDLE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-review-bundle-"));
+const BUNDLE_ROOT = makeTempRoot();
 fs.writeFileSync(path.join(BUNDLE_ROOT, "task.md"), "Add unit tests.\n", "utf8");
 
 test.after(() => {
@@ -30,10 +30,6 @@ test.after(() => {
 });
 const REFERENCE_FIRST_SEED = 4;
 const CANDIDATE_FIRST_SEED = 7;
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-review-"));
-}
 
 function dimensions(names = RUBRIC) {
   return names.map((name) => ({

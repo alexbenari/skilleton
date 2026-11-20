@@ -5,11 +5,11 @@ const { fingerprintText } = require("../../electron/evaluation-fingerprint");
 const {
   Subject,
   GuidanceSet,
-  ArmConfiguration,
   EvaluationDefinition,
   EvaluationDefinitionError,
   variedFactorBetween,
 } = require("../../electron/evaluation-definition");
+const { sampleArm, sampleDefinitionFields } = require("../helpers/sample-definitions");
 
 function skillSubject(name, guidanceText) {
   return new Subject({
@@ -23,32 +23,6 @@ function skillSubject(name, guidanceText) {
 const CODE_REVIEW_V1 = skillSubject("code-review", "Name the risk before the fix.\n");
 const CODE_REVIEW_V2 = skillSubject("code-review", "Name the risk, then propose the fix.\n");
 const TESTING_DISCIPLINE = skillSubject("testing-discipline", "Assert the contract.\n");
-
-function arm({ agent = "codex", model = "luna", effort = "medium", subjects = [] } = {}) {
-  return new ArmConfiguration({
-    agent,
-    model,
-    effort,
-    guidanceSet: new GuidanceSet(subjects),
-  });
-}
-
-function definitionFields(overrides = {}) {
-  return {
-    id: "code-review-effort",
-    referenceArm: arm({ effort: "medium" }),
-    candidateArm: arm({ effort: "high" }),
-    targetId: "sample-target",
-    targetFingerprint: fingerprintText("The sample target content.\n"),
-    scenarioId: "sample-scenario",
-    scenarioFingerprint: fingerprintText("The sample scenario prompt.\n"),
-    rubric: ["correctness", "structure"],
-    checks: [{ id: "unit", kind: "validator", command: "manifest:test", timeoutSeconds: 300 }],
-    checksFingerprint: fingerprintText("unit/manifest:test\n"),
-    createdAt: "2026-04-07T09:00:00.000Z",
-    ...overrides,
-  };
-}
 
 function messageIncludes(...fragments) {
   return (error) => {
@@ -64,29 +38,29 @@ function messageIncludes(...fragments) {
 }
 
 test("variedFactorBetween reports effort for arms that differ only in effort", () => {
-  const reference = arm({ agent: "codex", model: "luna", effort: "medium" });
-  const candidate = arm({ agent: "codex", model: "luna", effort: "high" });
+  const reference = sampleArm({ agent: "codex", model: "luna", effort: "medium" });
+  const candidate = sampleArm({ agent: "codex", model: "luna", effort: "high" });
 
   assert.equal(variedFactorBetween(reference, candidate), "effort");
 });
 
 test("variedFactorBetween reports agent when the other agent brings its own model", () => {
-  const reference = arm({ agent: "codex", model: "luna", effort: "medium" });
-  const candidate = arm({ agent: "claude", model: "opus-5", effort: "medium" });
+  const reference = sampleArm({ agent: "codex", model: "luna", effort: "medium" });
+  const candidate = sampleArm({ agent: "claude", model: "opus-5", effort: "medium" });
 
   assert.equal(variedFactorBetween(reference, candidate), "agent");
 });
 
 test("variedFactorBetween reports guidance when one subject fingerprint differs", () => {
-  const reference = arm({ subjects: [CODE_REVIEW_V1, TESTING_DISCIPLINE] });
-  const candidate = arm({ subjects: [CODE_REVIEW_V2, TESTING_DISCIPLINE] });
+  const reference = sampleArm({ subjects: [CODE_REVIEW_V1, TESTING_DISCIPLINE] });
+  const candidate = sampleArm({ subjects: [CODE_REVIEW_V2, TESTING_DISCIPLINE] });
 
   assert.equal(variedFactorBetween(reference, candidate), "guidance");
 });
 
 test("variedFactorBetween rejects arms that differ in model and effort", () => {
-  const reference = arm({ agent: "codex", model: "luna", effort: "medium" });
-  const candidate = arm({ agent: "codex", model: "luna-mini", effort: "high" });
+  const reference = sampleArm({ agent: "codex", model: "luna", effort: "medium" });
+  const candidate = sampleArm({ agent: "codex", model: "luna-mini", effort: "high" });
 
   assert.throws(
     () => variedFactorBetween(reference, candidate),
@@ -95,8 +69,8 @@ test("variedFactorBetween rejects arms that differ in model and effort", () => {
 });
 
 test("variedFactorBetween rejects two identical arms", () => {
-  const reference = arm({ agent: "codex", model: "luna", effort: "medium" });
-  const candidate = arm({ agent: "codex", model: "luna", effort: "medium" });
+  const reference = sampleArm({ agent: "codex", model: "luna", effort: "medium" });
+  const candidate = sampleArm({ agent: "codex", model: "luna", effort: "medium" });
 
   assert.throws(
     () => variedFactorBetween(reference, candidate),
@@ -151,9 +125,9 @@ test("EvaluationDefinition rejects a guidance difference mode when the varied fa
   assert.throws(
     () =>
       new EvaluationDefinition(
-        definitionFields({
-          referenceArm: arm({ effort: "medium" }),
-          candidateArm: arm({ effort: "high" }),
+        sampleDefinitionFields({
+          referenceArm: sampleArm({ effort: "medium" }),
+          candidateArm: sampleArm({ effort: "high" }),
           guidanceDifferenceMode: "prior-version",
         })
       ),
@@ -165,9 +139,9 @@ test("EvaluationDefinition rejects prior-version mode when the arms hold differe
   assert.throws(
     () =>
       new EvaluationDefinition(
-        definitionFields({
-          referenceArm: arm({ subjects: [CODE_REVIEW_V1] }),
-          candidateArm: arm({ subjects: [TESTING_DISCIPLINE] }),
+        sampleDefinitionFields({
+          referenceArm: sampleArm({ subjects: [CODE_REVIEW_V1] }),
+          candidateArm: sampleArm({ subjects: [TESTING_DISCIPLINE] }),
           guidanceDifferenceMode: "prior-version",
         })
       ),
@@ -179,9 +153,9 @@ test("EvaluationDefinition rejects absent mode when the reference arm already ha
   assert.throws(
     () =>
       new EvaluationDefinition(
-        definitionFields({
-          referenceArm: arm({ subjects: [CODE_REVIEW_V1] }),
-          candidateArm: arm({ subjects: [CODE_REVIEW_V1, TESTING_DISCIPLINE] }),
+        sampleDefinitionFields({
+          referenceArm: sampleArm({ subjects: [CODE_REVIEW_V1] }),
+          candidateArm: sampleArm({ subjects: [CODE_REVIEW_V1, TESTING_DISCIPLINE] }),
           guidanceDifferenceMode: "absent",
         })
       ),
@@ -193,7 +167,7 @@ test("EvaluationDefinition rejects reviewerRole model without an evaluation mode
   assert.throws(
     () =>
       new EvaluationDefinition(
-        definitionFields({ reviewerRole: "model", evaluationModel: null })
+        sampleDefinitionFields({ reviewerRole: "model", evaluationModel: null })
       ),
     messageIncludes("model", "evaluation model")
   );
@@ -201,7 +175,7 @@ test("EvaluationDefinition rejects reviewerRole model without an evaluation mode
 
 test("EvaluationDefinition accepts reviewerRole user without an evaluation model", () => {
   const definition = new EvaluationDefinition(
-    definitionFields({ reviewerRole: "user", evaluationModel: null })
+    sampleDefinitionFields({ reviewerRole: "user", evaluationModel: null })
   );
 
   assert.equal(definition.reviewerRole, "user");
@@ -210,7 +184,7 @@ test("EvaluationDefinition accepts reviewerRole user without an evaluation model
 
 test("EvaluationDefinition versionedId names the definition and its version", () => {
   const definition = new EvaluationDefinition(
-    definitionFields({ id: "code-review-effort", version: 3 })
+    sampleDefinitionFields({ id: "code-review-effort", version: 3 })
   );
 
   assert.equal(definition.versionedId(), "code-review-effort-v3");
@@ -218,9 +192,9 @@ test("EvaluationDefinition versionedId names the definition and its version", ()
 
 test("EvaluationDefinition round-trips through toJSON and fromJSON", () => {
   const definition = new EvaluationDefinition(
-    definitionFields({
-      referenceArm: arm({ effort: "medium", subjects: [CODE_REVIEW_V1] }),
-      candidateArm: arm({ effort: "high", subjects: [CODE_REVIEW_V1] }),
+    sampleDefinitionFields({
+      referenceArm: sampleArm({ effort: "medium", subjects: [CODE_REVIEW_V1] }),
+      candidateArm: sampleArm({ effort: "high", subjects: [CODE_REVIEW_V1] }),
     })
   );
 

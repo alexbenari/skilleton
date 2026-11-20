@@ -1,11 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const { EventEmitter } = require("node:events");
 
 const { AgentProcess, parseJsonLines } = require("../../electron/evaluation-agent-process");
+const { makeTempRoot } = require("../helpers/temp-files");
 
 // Stands in for a spawned CLI. The caller scripts the chunks the fake child
 // writes and how it ends; the fake records the argv, options, stdin and kill
@@ -44,10 +44,6 @@ function stubSpawn({
   };
   spawn.calls = calls;
   return spawn;
-}
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-agent-process-"));
 }
 
 test("a process that writes output and exits zero is completed with its streams captured", async () => {

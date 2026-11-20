@@ -1,12 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const { CheckRunner } = require("../../electron/evaluation-check-runner");
 const { readRunManifest } = require("../../electron/evaluation-evidence");
 const { CheckDefinition } = require("../../electron/evaluation-catalog");
+const { makeTempRoot } = require("../helpers/temp-files");
 
 // The checks below shell out for real, so they name the shell this platform has.
 const SHELL = process.platform === "win32" ? "cmd" : "sh";
@@ -53,10 +53,6 @@ setTimeout(() => {
 const CONTEXT_CHECK_SCRIPT = `
 console.log(JSON.stringify({ status: "pass", summary: "Reviewed " + process.argv[2], findings: [] }));
 `;
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-check-runner-"));
-}
 
 function writeScript(directoryPath, filename, source) {
   fs.mkdirSync(directoryPath, { recursive: true });

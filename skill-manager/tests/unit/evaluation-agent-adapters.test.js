@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const { EventEmitter } = require("node:events");
 
@@ -10,6 +9,7 @@ const { CodexAgentAdapter } = require("../../electron/evaluation-agent-codex");
 const { ClaudeAgentAdapter } = require("../../electron/evaluation-agent-claude");
 const { ArmConfiguration, GuidanceSet, Subject } = require("../../electron/evaluation-definition");
 const { AgentHome } = require("../../electron/evaluation-home");
+const { makeTempRoot } = require("../helpers/temp-files");
 
 const CODEX_CLI_PATH = "C:\\tools\\codex\\codex.exe";
 const CLAUDE_CLI_PATH = "C:\\tools\\claude\\claude.exe";
@@ -93,10 +93,6 @@ function requestFor(arm, overrides = {}) {
 
 function jsonLines(events) {
   return `${events.map((event) => JSON.stringify(event)).join("\n")}\n`;
-}
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-agent-adapters-"));
 }
 
 const CODEX_TURN_USAGE = {

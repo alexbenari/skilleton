@@ -1,51 +1,22 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
-const {
-  ArmConfiguration,
-  EvaluationDefinition,
-  GuidanceSet,
-} = require("../../electron/evaluation-definition");
 const { EvaluationService } = require("../../electron/evaluation-service");
 const { EvaluationWorkspace } = require("../../electron/evaluation-workspace");
+const { sampleDefinition } = require("../helpers/sample-definitions");
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 const DEFINITION_ID = "invoice-report-effort";
 const DEFINITION_VERSION = 3;
 
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-service-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-  return filePath;
-}
-
-function armWithEffort(effort) {
-  return new ArmConfiguration({
-    agent: "codex",
-    model: "luna",
-    effort,
-    guidanceSet: new GuidanceSet([]),
-  });
-}
-
 function storedDefinition() {
-  return new EvaluationDefinition({
+  return sampleDefinition({
     id: DEFINITION_ID,
     version: DEFINITION_VERSION,
-    referenceArm: armWithEffort("medium"),
-    candidateArm: armWithEffort("high"),
     targetId: "invoice-report",
-    targetFingerprint: "sha256:target",
     scenarioId: "generate-report",
-    scenarioFingerprint: "sha256:scenario",
-    rubric: ["correctness"],
-    checksFingerprint: "sha256:checks",
   });
 }
 

@@ -1,21 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const { listDirectoryNames, listFileNames, entryKind } = require("../../electron/evaluation-fs");
 const { fingerprintDirectory } = require("../../electron/evaluation-fingerprint");
 const { scanAmbientGuidance } = require("../../electron/evaluation-ambient-guidance");
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-fs-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-}
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 // Windows allows a directory junction without administrator rights, which is
 // what a published skill library actually looks like on this machine.

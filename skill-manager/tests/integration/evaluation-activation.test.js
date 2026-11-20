@@ -1,24 +1,14 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const { SubjectActivation, EvaluationActivationError } = require("../../electron/evaluation-activation");
 const { GuidanceSet, Subject } = require("../../electron/evaluation-definition");
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 const POINTER_TEXT =
   "## Code design guidance\n\nRead the repository design-guidance document `coding-quality.md` first.\n";
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-activation-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-  return filePath;
-}
 
 function skillSubject(sourceRoot, name) {
   const skillPath = path.join(sourceRoot, name);

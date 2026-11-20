@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const {
@@ -10,10 +9,7 @@ const {
   scanAmbientGuidance,
 } = require("../../electron/evaluation-ambient-guidance");
 const { GuidanceSet, Subject } = require("../../electron/evaluation-definition");
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-ambient-guidance-"));
-}
+const { makeTempRoot } = require("../helpers/temp-files");
 
 // Stands in for a global skill root the CLI reads no matter what the run's
 // isolated home says: a directory of installed skills.

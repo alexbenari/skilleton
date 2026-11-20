@@ -1,13 +1,13 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const { costRecordFor, runCost, estimateTokens } = require("../../electron/evaluation-cost");
 const { GuidanceSet, Subject } = require("../../electron/evaluation-definition");
 const { ActivationRecord } = require("../../electron/evaluation-activation");
 const { ActivationSignal, RunRecord } = require("../../electron/evaluation-agent-runner");
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 const INSTRUCTION_TEXT = "# Repository Instructions\n\nRun the unit tests before committing.\n";
 const INSTRUCTION_BYTES = 65;
@@ -18,16 +18,6 @@ const SKILL_DIRECTORY_BYTES = 98;
 const DOCUMENT_TEXT = "# Code Design\n\nPrefer composition over inheritance.\n";
 const DOCUMENT_BYTES = 52;
 const CODEX_INSTRUCTION_BUDGET_BYTES = 32 * 1024;
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-cost-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-  return filePath;
-}
 
 function instructionSubject(sourceRoot) {
   return new Subject({

@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const {
@@ -10,6 +9,7 @@ const {
   readRunManifest,
 } = require("../../electron/evaluation-evidence");
 const { EvaluationWorkspace, PreparedRun } = require("../../electron/evaluation-workspace");
+const { makeTempRoot, writeFile } = require("../helpers/temp-files");
 
 // A four-file generative deliverable whose byte sizes the inventory must total.
 const PACKAGE_JSON = `{
@@ -23,16 +23,6 @@ const CLI_JS = `require("./report-builder").main();\n`;
 const REPORT_BUILDER_JS = `exports.main = () => console.log("report");\n`;
 const REPORT_BUILDER_TEST_JS = `require("node:test");\n`;
 const GENERATED_DELIVERABLE_BYTES = 246;
-
-function makeTempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "evaluation-evidence-"));
-}
-
-function writeFile(filePath, contents) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, contents, "utf8");
-  return filePath;
-}
 
 // A PreparedRun the evidence reader can walk, without running an agent first.
 function preparedWorkspaceIn(tempRoot, files) {
