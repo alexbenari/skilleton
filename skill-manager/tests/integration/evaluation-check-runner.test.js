@@ -44,6 +44,18 @@ fs.writeFileSync("manifest-test-ran.txt", "ran\\n");
 console.log(JSON.stringify({ status: "pass", summary: "All 12 unit tests passed.", findings: [] }));
 `;
 
+// What a real build or test tool prints: a verdict in prose and an exit code,
+// never the JSON object scenario-owned check scripts produce.
+const TOOL_STYLE_PASSING_SCRIPT = `
+console.log("Determining projects to restore...");
+console.log("Passed! - Failed: 0, Passed: 269, Skipped: 0, Total: 269, Duration: 428 ms");
+`;
+
+const TOOL_STYLE_FAILING_SCRIPT = `
+console.log("Failed! - Failed: 2, Passed: 267, Skipped: 0, Total: 269");
+process.exit(1);
+`;
+
 const SLEEPING_CHECK_SCRIPT = `
 setTimeout(() => {
   console.log(JSON.stringify({ status: "pass", summary: "Finished late.", findings: [] }));
@@ -185,6 +197,67 @@ test("a manifest:test check runs the test command the run manifest declares", as
       fs.existsSync(path.join(context.workspacePath, "manifest-test-ran.txt")),
       true
     );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("a manifest command that prints a tool's own verdict instead of JSON passes on exit code 0 and quotes the verdict", async () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const context = makeContext(tempRoot);
+    writeScript(context.workspacePath, "dotnet-test.js", TOOL_STYLE_PASSING_SCRIPT);
+    writeRunManifest(context.workspacePath, { test: "node dotnet-test.js" });
+    context.manifest = readRunManifest(context.workspacePath);
+
+    const result = await new CheckRunner().runOne(
+      checkDefinition({ id: "test", command: "manifest:test", shell: null }),
+      context
+    );
+
+    assert.equal(result.status, "pass");
+    assert.equal(result.reason, null);
+    assert.equal(result.exitCode, 0);
+    assert.match(result.summary, /^test command exited 0: Passed! - Failed: 0, Passed: 269/);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("a manifest command that exits non-zero without JSON is a failing check, not an error", async () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const context = makeContext(tempRoot);
+    writeScript(context.workspacePath, "dotnet-test.js", TOOL_STYLE_FAILING_SCRIPT);
+    writeRunManifest(context.workspacePath, { test: "node dotnet-test.js" });
+    context.manifest = readRunManifest(context.workspacePath);
+
+    const result = await new CheckRunner().runOne(
+      checkDefinition({ id: "test", command: "manifest:test", shell: null }),
+      context
+    );
+
+    assert.equal(result.status, "fail");
+    assert.equal(result.exitCode, 1);
+    assert.match(result.summary, /^test command exited 1: Failed! - Failed: 2/);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("a scenario-owned check script that prints no JSON is still an error, whatever its exit code", async () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const context = makeContext(tempRoot);
+    writeScript(context.workspacePath, "silent.js", TOOL_STYLE_PASSING_SCRIPT);
+
+    const result = await new CheckRunner().runOne(
+      checkDefinition({ id: "silent", command: "node silent.js" }),
+      context
+    );
+
+    assert.equal(result.status, "error");
+    assert.equal(result.reason, "unparseable-output");
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

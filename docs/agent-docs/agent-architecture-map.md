@@ -140,8 +140,26 @@ Orchestration and surfaces:
   evidence.
 - Task arms run unsandboxed because the Codex Windows sandbox fails on this
   machine; review arms stay read-only.
+- A task run is killed after the adapter default of 30 minutes unless
+  `--timeout <minutes>` (command line) or `SKILL_MANAGER_TASK_TIMEOUT_MINUTES`
+  (both surfaces) says otherwise. A plan-and-implement run at high effort
+  needs hours: both arms of the first anchor-word run were cut off mid-work
+  at 30 minutes with no run manifest written.
 - Neither CLI is on `PATH`. Paths come from `AppConfig` or the
   `SKILL_MANAGER_CODEX_CLI` / `SKILL_MANAGER_CLAUDE_CLI` environment variables.
+- Claude authenticates through `CLAUDE_CODE_OAUTH_TOKEN`, a long-lived token
+  from `claude setup-token`. When that variable is set, the isolated home
+  copies no credentials file (`evaluation-home.js`, `credentialSource:
+  "environment-token"`). Copying `.credentials.json` is only a fallback: the
+  first copy to refresh rotates the OAuth refresh token and strands the
+  original and every other copy, which is how the standalone CLI lost its
+  login on this machine.
+- The Claude desktop app is a Microsoft Store package. The CLI it bundles sits
+  under `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude\claude-code\<version>\<hash>\claude.exe`;
+  processes started by the app see it virtualized at
+  `%APPDATA%\Claude\claude-code\...`, ordinary shells do not. The standalone
+  CLI in `~/.local/bin` may lag the bundled one by several releases and
+  refuse newer model ids.
 
 ### Current metadata source of truth
 

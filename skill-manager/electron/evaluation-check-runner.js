@@ -81,6 +81,28 @@ function tail(text, limit = 4000) {
   return text.length <= limit ? text : `...${text.slice(text.length - limit)}`;
 }
 
+// The last non-empty line a build or test tool printed is usually its verdict
+// ("Build succeeded", "Passed! - Failed: 0, Passed: 269").
+function lastLine(stdout, stderr) {
+  const lines = `${stdout}\n${stderr}`
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  return lines.length > 0 ? lines[lines.length - 1].slice(0, 200) : "(no output)";
+}
+
+// A build or test command from the arm's own manifest speaks through its exit
+// code, not through the JSON contract that scenario-owned scripts follow.
+// `dotnet test` passing 269 tests is a pass, not an error. Exported so a stored
+// record judged under the old rule can be re-judged under exactly this one.
+function manifestVerdict({ step, exitCode, stdout = "", stderr = "" }) {
+  return {
+    status: exitCode === 0 ? "pass" : "fail",
+    summary: `${step} command exited ${exitCode}: ${lastLine(stdout, stderr)}`,
+    reason: null,
+  };
+}
+
 // A check script prints one JSON object; progress chatter before it is tolerated
 // so a scenario author is not forced to silence their own tooling.
 function parseCheckOutput(stdout) {
@@ -208,6 +230,17 @@ class CheckRunner {
       });
     }
     const parsed = parseCheckOutput(outcome.stdout);
+    if (!parsed && check.isManifestCommand()) {
+      return new CheckResult({
+        ...base,
+        ...manifestVerdict({
+          step: check.manifestStep(),
+          exitCode: outcome.exitCode,
+          stdout: outcome.stdout,
+          stderr: outcome.stderr,
+        }),
+      });
+    }
     if (!parsed) {
       return new CheckResult({
         ...base,
@@ -282,4 +315,5 @@ module.exports = {
   SHELL_INVOCATIONS,
   DEFAULT_SHELL,
   parseCheckOutput,
+  manifestVerdict,
 };

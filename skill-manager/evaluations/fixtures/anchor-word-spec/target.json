@@ -1,0 +1,5 @@
+{
+  "id": "anchor-word-spec",
+  "shape": "generative",
+  "description": "Signed-off spec and requirements for the anchor-word permutation composition CLI. One run writes the execution plan and implements it in C#. Prescriptiveness: the spec fixes the domain model, the layer names and the module layout (cli, composition-service, domain, config/validation, layout, ports, adapters) and the CLI option names; it leaves libraries, project structure, class design, error wording and tests open."
+}

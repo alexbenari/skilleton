@@ -134,7 +134,10 @@ function candidateArm(overrides = {}) {
   });
 }
 
-function bundleFor(outputPath, { reference, candidate, seed = EVEN_SEED, variedFactor = "effort" }) {
+function bundleFor(
+  outputPath,
+  { reference, candidate, seed = EVEN_SEED, variedFactor = "effort", reviewGuidance = "" }
+) {
   return buildReviewBundle({
     reference,
     candidate,
@@ -142,6 +145,7 @@ function bundleFor(outputPath, { reference, candidate, seed = EVEN_SEED, variedF
     variedFactor,
     rubric: RUBRIC,
     scenarioPrompt: SCENARIO_PROMPT,
+    reviewGuidance,
     seed,
   });
 }
@@ -288,7 +292,7 @@ test("the review bundle holds the task, the rubric and one labelled directory pe
       candidate: candidateArm(),
     });
 
-    assert.deepEqual(fs.readdirSync(outputPath).sort(), ["A", "B", "rubric.json", "task.md"]);
+    assert.deepEqual(fs.readdirSync(outputPath).sort(), ["A", "B", "review.md", "rubric.json", "task.md"]);
     assert.deepEqual(fs.readdirSync(bundle.armPath("A")), ["evidence.json"]);
     assert.deepEqual(fs.readdirSync(bundle.armPath("B")), ["evidence.json"]);
     assert.equal(fs.readFileSync(path.join(outputPath, "task.md"), "utf8"), `${SCENARIO_PROMPT}\n`);
@@ -297,6 +301,45 @@ test("the review bundle holds the task, the rubric and one labelled directory pe
       { dimensions: RUBRIC }
     );
     assert.equal(bundle.blinding, "partial");
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("the review brief carries the reading order, every rubric dimension, the scenario's guidance and the A/B verdict vocabulary", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const outputPath = path.join(tempRoot, "bundle");
+    const guidance = "Judge the tests by what they would catch, not by how many there are.";
+
+    const bundle = bundleFor(outputPath, {
+      reference: referenceArm(),
+      candidate: candidateArm(),
+      reviewGuidance: guidance,
+    });
+    const brief = fs.readFileSync(path.join(outputPath, "review.md"), "utf8");
+
+    assert.match(brief, /1\. the plan or design document/);
+    for (const dimension of RUBRIC) {
+      assert.ok(brief.includes(`- ${dimension}`), `brief names ${dimension}`);
+    }
+    assert.ok(brief.includes(guidance));
+    assert.match(brief, /"recommendation": "A" \| "B" \| "mixed" \| "equivalent" \| "inconclusive"/);
+    assert.equal(bundle.reviewGuidance, guidance);
+    assert.equal(bundle.toJSON().reviewGuidance, guidance);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("a bundle built without scenario guidance says so in the brief rather than leaving a hole", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const outputPath = path.join(tempRoot, "bundle");
+
+    bundleFor(outputPath, { reference: referenceArm(), candidate: candidateArm() });
+
+    assert.match(fs.readFileSync(path.join(outputPath, "review.md"), "utf8"), /## Guidance for this scenario\n\nNone recorded\./);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

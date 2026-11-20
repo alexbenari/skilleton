@@ -4,28 +4,61 @@ const path = require("path");
 
 class EvaluationHomeError extends Error {}
 
+// A copied OAuth credentials file is a trap: the first copy to refresh rotates
+// the refresh token and strands the original and every other copy. A long-lived
+// token in the environment (`claude setup-token`) never rotates, so when it is
+// present the home carries no credentials file at all and the CLI reads the
+// token from the environment it inherits.
 const AGENT_HOME_PROFILES = {
   claude: {
     envVarName: "CLAUDE_CONFIG_DIR",
     defaultSource: () => path.join(os.homedir(), ".claude"),
     credentialFilenames: [".credentials.json"],
     optionalFilenames: [],
+    tokenEnvVar: "CLAUDE_CODE_OAUTH_TOKEN",
   },
   codex: {
     envVarName: "CODEX_HOME",
     defaultSource: () => process.env.CODEX_HOME || path.join(os.homedir(), ".codex"),
     credentialFilenames: ["auth.json"],
     optionalFilenames: ["config.toml"],
+    tokenEnvVar: null,
   },
 };
 
+const CREDENTIAL_SOURCES = ["copied-file", "environment-token", "inherited"];
+
+// Records written before the credential source was tracked carry only the
+// copied filenames; the source follows from them, since an isolated home with
+// nothing copied can only have authenticated from the environment.
+function defaultCredentialSource({ copiedFilenames = [], inheritedFrom = null }) {
+  if (inheritedFrom) {
+    return "inherited";
+  }
+  return copiedFilenames.length > 0 ? "copied-file" : "environment-token";
+}
+
 class AgentHome {
-  constructor({ agent, homePath, envVarName, isolation, copiedFilenames, inheritedFrom = null }) {
+  constructor({
+    agent,
+    homePath,
+    envVarName,
+    isolation,
+    copiedFilenames,
+    inheritedFrom = null,
+    credentialSource = defaultCredentialSource({ copiedFilenames, inheritedFrom }),
+  }) {
+    if (!CREDENTIAL_SOURCES.includes(credentialSource)) {
+      throw new EvaluationHomeError(
+        `Credential source must be one of ${CREDENTIAL_SOURCES.join(", ")}, received ${JSON.stringify(credentialSource)}.`
+      );
+    }
     this.agent = agent;
     this.homePath = homePath;
     this.envVarName = envVarName;
     this.isolation = isolation;
     this.copiedFilenames = Object.freeze([...copiedFilenames]);
+    this.credentialSource = credentialSource;
     this.inheritedFrom = inheritedFrom;
     Object.freeze(this);
   }
@@ -45,15 +78,22 @@ class AgentHome {
       envVarName: this.envVarName,
       isolation: this.isolation,
       copiedFilenames: [...this.copiedFilenames],
+      credentialSource: this.credentialSource,
       inheritedFrom: this.inheritedFrom,
     };
   }
 }
 
 class IsolatedAgentHome {
-  constructor({ fileSystem = fs, profiles = AGENT_HOME_PROFILES } = {}) {
+  constructor({ fileSystem = fs, profiles = AGENT_HOME_PROFILES, env = process.env } = {}) {
     this.fileSystem = fileSystem;
     this.profiles = profiles;
+    this.env = env;
+  }
+
+  tokenInEnvironment(profile) {
+    const value = profile.tokenEnvVar ? this.env[profile.tokenEnvVar] : null;
+    return typeof value === "string" && value.trim() !== "";
   }
 
   profileFor(agent) {
@@ -73,11 +113,12 @@ class IsolatedAgentHome {
   create({ agent, homePath, sourcePath = null, allowInheritedHome = false, optionalFiles = {} }) {
     const profile = this.profileFor(agent);
     const source = sourcePath || profile.defaultSource();
+    const tokenPresent = this.tokenInEnvironment(profile);
     const missing = [];
     const copied = [];
     this.fileSystem.rmSync(homePath, { recursive: true, force: true });
     this.fileSystem.mkdirSync(homePath, { recursive: true });
-    for (const filename of profile.credentialFilenames) {
+    for (const filename of tokenPresent ? [] : profile.credentialFilenames) {
       const from = path.join(source, filename);
       if (!this.fileSystem.existsSync(from)) {
         missing.push(from);
@@ -112,6 +153,7 @@ class IsolatedAgentHome {
         envVarName: profile.envVarName,
         isolation: "inherited",
         copiedFilenames: [],
+        credentialSource: "inherited",
         inheritedFrom: source,
       });
     }
@@ -121,6 +163,7 @@ class IsolatedAgentHome {
       envVarName: profile.envVarName,
       isolation: "isolated",
       copiedFilenames: copied,
+      credentialSource: tokenPresent ? "environment-token" : "copied-file",
     });
   }
 

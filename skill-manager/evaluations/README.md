@@ -19,6 +19,7 @@ being built.
         checks/           optional check scripts the scenario invokes
       scenarios/<target-id>/<name>.md
       subjects/           instruction files, referenced documents, pointers
+      requests/           define requests and the scripts that build them
 
 Generated data defaults to `skill-manager/evaluations-data/` for the command
 line and to `<userData>/evaluations/` inside Electron. Override either with
@@ -106,3 +107,27 @@ subjects stay in the active skill library and are referenced by path.
 The pointer text for a referenced document must be identical in both arms. It
 is part of the run configuration, not part of the subject: rewording it changes
 how often the agent reads the document and therefore changes the result.
+
+## Targets in this catalog
+
+- `docgen-requirements` / `write-spec-and-plan`: stage 1 of the
+  document-generator pipeline. Its requirements file is a placeholder; the loop
+  was proven on it.
+- `anchor-word-spec` / `plan-and-implement`: the anchor-word permutation
+  composition CLI. The fixture is the real requirements document and the
+  signed-off spec written from it; one run writes the execution plan and then
+  implements it in C#. The plan is not frozen, so a guidance subject in force
+  here shapes planning as well as code. Behavioral checks start the tool
+  through the arm's run manifest and inspect the produced `.docx` directly
+  (`checks/docx-reader.js`). Page count is not checked, since that needs a
+  renderer.
+
+## Requests
+
+`requests/` holds the JSON handed to `node scripts/evaluate.js define --input`.
+Where a request is derived from other files, the script that derives it sits
+beside it, so a changed snapshot or pointer is regenerated rather than edited
+by hand:
+
+    node evaluations/requests/make-coding-quality-request.js
+    node scripts/evaluate.js define --input evaluations/requests/coding-quality-v1-vs-v2.json

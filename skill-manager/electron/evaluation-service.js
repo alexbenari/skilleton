@@ -30,15 +30,25 @@ class EvaluationService {
     isolatedHome,
     runner,
     checkRunner,
+    taskTimeoutMs = null,
     fileSystem = fs,
     scanAmbient = scanAmbientGuidance,
   }) {
+    if (taskTimeoutMs !== null && !(Number.isFinite(taskTimeoutMs) && taskTimeoutMs > 0)) {
+      throw new EvaluationServiceError(
+        `taskTimeoutMs must be a positive number of milliseconds or null, received ${JSON.stringify(taskTimeoutMs)}.`
+      );
+    }
     this.catalog = catalog;
     this.store = store;
     this.workspace = workspace;
     this.isolatedHome = isolatedHome;
     this.runner = runner;
     this.checkRunner = checkRunner;
+    // How long one task run may take before the adapter kills it. Null leaves
+    // the adapter's default; a plan-and-implement task needs hours, not the
+    // default half hour.
+    this.taskTimeoutMs = taskTimeoutMs;
     this.fileSystem = fileSystem;
     this.scanAmbient = scanAmbient;
     this.builder = new EvaluationDefinitionBuilder({ catalog, fileSystem });
@@ -149,6 +159,7 @@ class EvaluationService {
       prompt: scenario.prompt,
       transcriptPath: prepared.transcriptPath,
       lastMessagePath: prepared.lastMessagePath,
+      timeoutMs: this.taskTimeoutMs,
       signal,
       onEvent: (event) => this.emit(onProgress, { phase: "run-event", role, runIndex, event }),
     });
@@ -282,6 +293,7 @@ class EvaluationService {
         variedFactor: comparison.variedFactor,
         rubric: definition.rubric,
         scenarioPrompt: scenario.prompt,
+        reviewGuidance: scenario.reviewGuidance,
         fileSystem: this.fileSystem,
       });
       const record = {
@@ -311,6 +323,7 @@ class EvaluationService {
       blinding: stored.blinding,
       variedFactor: stored.variedFactor,
       rubric: stored.rubric,
+      reviewGuidance: stored.reviewGuidance || "",
       assignment: new ArmAssignment(stored.assignment),
     };
   }

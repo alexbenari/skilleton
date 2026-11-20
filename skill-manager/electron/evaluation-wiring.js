@@ -10,6 +10,24 @@ const { IsolatedAgentHome } = require("./evaluation-home");
 const { resolveCatalogRoot, resolveCliPaths, resolveStoreRoot } = require("./evaluation-paths");
 
 const REVIEW_SANDBOX_ENV_VAR = "SKILL_MANAGER_CODEX_REVIEW_SANDBOX";
+const TASK_TIMEOUT_ENV_VAR = "SKILL_MANAGER_TASK_TIMEOUT_MINUTES";
+
+// An explicit value wins; the environment is the fallback so the Electron app
+// and the command line share one setting without the UI growing a field.
+function resolveTaskTimeoutMs({ env = process.env, override = null } = {}) {
+  if (override !== null && override !== undefined) {
+    return override;
+  }
+  const raw = env[TASK_TIMEOUT_ENV_VAR];
+  if (raw === undefined || raw === "") {
+    return null;
+  }
+  const minutes = Number(raw);
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    throw new Error(`${TASK_TIMEOUT_ENV_VAR} must be a positive number of minutes, received ${JSON.stringify(raw)}.`);
+  }
+  return minutes * 60 * 1000;
+}
 
 function buildAdapters(cliPaths, env = process.env) {
   return {
@@ -21,7 +39,13 @@ function buildAdapters(cliPaths, env = process.env) {
   };
 }
 
-function createEvaluationService({ appConfig = null, userDataPath = null, tempRootPath, env = process.env } = {}) {
+function createEvaluationService({
+  appConfig = null,
+  userDataPath = null,
+  tempRootPath,
+  taskTimeoutMs = null,
+  env = process.env,
+} = {}) {
   if (!tempRootPath) {
     throw new Error("createEvaluationService needs a tempRootPath.");
   }
@@ -30,9 +54,10 @@ function createEvaluationService({ appConfig = null, userDataPath = null, tempRo
     catalog: new EvaluationCatalog({ rootPath: resolveCatalogRoot({ env }) }),
     store: new EvaluationStore({ rootPath: resolveStoreRoot({ env, userDataPath }) }),
     workspace: new EvaluationWorkspace({ tempRootPath }),
-    isolatedHome: new IsolatedAgentHome(),
+    isolatedHome: new IsolatedAgentHome({ env }),
     runner: new AgentRunner({ adapters: buildAdapters(cliPaths, env) }),
     checkRunner: new CheckRunner(),
+    taskTimeoutMs: resolveTaskTimeoutMs({ env, override: taskTimeoutMs }),
   });
 }
 
@@ -91,5 +116,7 @@ module.exports = {
   createEvaluationService,
   buildAdapters,
   registerEvaluationIpc,
+  resolveTaskTimeoutMs,
   REVIEW_SANDBOX_ENV_VAR,
+  TASK_TIMEOUT_ENV_VAR,
 };

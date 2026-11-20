@@ -22,8 +22,10 @@ Commands:
                               Needs --agent, --model and --effort.
 
 Options:
-  --catalog <dir>   Catalog root (default: skill-manager/evaluations)
-  --store <dir>     Store root (default: skill-manager/evaluations-data)
+  --catalog <dir>        Catalog root (default: skill-manager/evaluations)
+  --store <dir>          Store root (default: skill-manager/evaluations-data)
+  --timeout <minutes>    How long one task run may take (default: the adapter's
+                         30 minutes, or SKILL_MANAGER_TASK_TIMEOUT_MINUTES)
 `;
 
 function parseArguments(argv) {
@@ -113,10 +115,22 @@ function commandShow(positional, options) {
   process.stdout.write(`${JSON.stringify(definition.toJSON(), null, 2)}\n`);
 }
 
+function taskTimeoutFrom(options) {
+  if (options.timeout === undefined) {
+    return null;
+  }
+  const minutes = Number(options.timeout);
+  if (options.timeout === true || !Number.isFinite(minutes) || minutes <= 0) {
+    throw new Error(`--timeout needs a positive number of minutes, received ${JSON.stringify(options.timeout)}`);
+  }
+  return minutes * 60 * 1000;
+}
+
 function buildService(options) {
   return createEvaluationService({
     tempRootPath: options.temp || os.tmpdir(),
     userDataPath: null,
+    taskTimeoutMs: taskTimeoutFrom(options),
   });
 }
 

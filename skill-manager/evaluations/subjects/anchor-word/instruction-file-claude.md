@@ -1,0 +1,154 @@
+# Repository Instructions
+
+## Planning Flow
+
+Use this flow when the user explicitly wants to plan a new feature together.
+
+1. Get up to speed on the user's feature description by reading the agent documentation in the Agent Documentation section first, then inspecting only the relevant code paths it points to.
+2. Refine the spec with the user.
+3. Once the spec is agreed, create `docs/specs/[feature-name]-spec.md`, run the project-local `plan-review` skill on it, and ask the user to sign it off.
+4. After spec sign-off, create `docs/plans/[feature-name]-exec-plan.md` using `PLANS.md` as the source of truth, run `plan-review` on it, then ask the user to sign it off.
+5. Implement the feature after the execution plan is signed off.
+
+Specs follow the "Writing for the reader" rules in `PLANS.md`. Run `plan-review` again after any substantial revision of a spec or plan, and include its report in the sign-off request. If `plan-review` is unavailable, skip the review and say so in the sign-off request.
+
+If the user explicitly waives part of this flow for the current task, follow the user's instruction.
+
+## Agent Documentation
+
+`docs/agent-docs/` is the canonical agent-facing architecture knowledge base for this repo.
+
+Before planning substantial work, changing architecture, or working in an unfamiliar area:
+
+1. read `docs/agent-docs/agent-architecture-map.md` first,
+2. follow its cross-references to only the relevant code and deeper docs,
+3. treat its architecture and code-design axioms as normative unless the user approves a challenge.
+
+Historical documents under `docs/specs/` and `docs/plans/` are not the primary source of truth for current architecture orientation. Use them only as historical context when needed.
+
+## Documentation Maintenance
+
+Use the project-local `doc-update` skill when:
+
+1. architecture or code-design changes would make `docs/agent-docs/` stale,
+2. infrastructure changes affect how an agent should orient itself,
+3. a new substantial feature changes module boundaries, concepts, or assumptions,
+4. the user asks to update or maintain the agent knowledge base.
+
+Treat architecture documentation as part of the change, not as optional follow-up work, when the change affects durable structure or assumptions.
+
+For a full audit of the existing documentation against the actual state of the repository, use
+the project-local `doc-alignment` skill — on explicit request only; it fans out verification
+agents and is expensive.
+
+If either skill does not exist, notify the user.
+
+## Code design guidance
+
+When writing or modifying code — implementation, design, refactoring, architecture, or review — first read the repository's design-guidance document `coding-quality.md`, if it exists. Treat that document as the repository's source of truth for local design preferences.
+
+The repository design-guidance document takes precedence over conflicting skill guidance on matters of code structure, layering, naming, responsibility boundaries, and review standards.
+
+Apply that guidance as follows:
+- Prefer the repository guidance over general design instincts or conflicting skill preferences.
+- If the repository guidance conflicts with framework conventions, correctness, security, explicit user instructions, or hard technical constraints, follow the constraint and explain the deviation briefly.
+- Do not apply the repository guidance mechanically; use judgment where the document leaves room for interpretation.
+
+After each non-trivial code change, run the project-local `code-quality-review` skill before reporting the change done or committing it, and include its report. A change is non-trivial when it adds a class, module, or production file, changes a public interface, moves code between classes or layers, replaces an algorithm, adds a feature, or adds or rewrites tests; the skill defines the full trigger. In an execution plan, run it at the end of each milestone that changes production code or adds or rewrites tests, before the milestone's validation gate. If `code-quality-review` is unavailable, review the change against the design-guidance document yourself and say so in the report.
+
+
+## Skill use during planning and execution
+
+When the agent environment provides workflow, design, implementation, testing, or documentation skills, use them according to their triggers. Do not treat an execution plan as an exemption from skill use because the user asked to "execute the plan" rather than explicitly asking to write code. Similarly, do not treat writing a spec as an exemption from skill use because the user did not explicitly ask to design or refactor.
+
+Writing a spec or execution plan requires applicable design skills when the document makes or records design decisions.
+
+Executing an execution plan requires applicable implementation skills when the plan calls for code, tests, refactors, API changes, build changes, documentation changes, or architecture changes. Re-evaluate the plan against the current repository state before editing, then use the skills triggered by the actual work being performed.
+
+Record in the execution plan which skills (or equivalent repository guidance) governed the work. If a skill the repository expects is unavailable, say so and apply the closest repository guidance instead.
+
+## Goal-based verification
+
+Before claiming a feature or fix is complete, identify the user-visible goal or acceptance behavior in one sentence.
+
+Verification must prove that goal, not just prove that code changed or tests pass.
+
+Use automated verification when unit, integration, or e2e tests can directly prove the goal. A new or changed test counts as evidence only after it has been seen failing for the right reason (`coding-quality.md` § Test reliability). If the goal involves perceived UX, real app behavior, performance, media playback, layout, or other behavior not fully covered by tests, perform targeted manual QA in the actual app and report what was verified.
+
+Do not claim completion from implementation-level evidence when the requested goal is user-visible behavior.
+
+## Orchestration posture
+
+This section applies only when both hold: the harness provides first-class subagent delegation
+(e.g. Claude Code's Agent tool, with per-agent model selection), **and** the session itself runs
+on a top-tier model (Fable-class). In a harness without subagent support (e.g. Codex CLI), skip
+this section entirely — do not emulate delegation by spawning nested CLI processes.
+
+When it applies, act as an orchestrator. Your context and attention are the scarce resources:
+they hold the best high-level view of the codebase and goals, and bulky mechanical work erodes
+them.
+
+- Delegate to a subagent any task that is (a) specifiable as a self-contained brief and (b) bulky
+  enough that brief-writing plus verification cost less than doing it directly. Typical: fan-out
+  searches, data scans, mechanical renames, implementation against a settled design, doc sweeps.
+- Choose the weakest model/effort that can do the task well, judging complexity rather than task
+  type. Err stronger in doubt — and always when the output is expensive to verify: mechanically
+  checkable results (build, tests, grep, byte-compare) delegate safely downward; judgment-checked
+  results stay up or go to a strong model.
+- Run independent agents concurrently with disjoint file scopes; serialize agents that touch the
+  same files.
+- A brief hands over all needed context or says where to find it, states the verification the
+  agent must run, and instructs it to report disagreements with the brief rather than adapt
+  silently.
+- Keep for yourself: decisions and user interaction, cross-cutting judgment (design, naming,
+  sense-dependent edits), consolidation, independent verification of load-bearing claims (see
+  "Subagent report verification" below), and small critical-path edits whose necessary context is
+  the conversation itself.
+
+## Subagent report verification
+
+Before relaying a subagent's report or building on it, independently verify its
+load-bearing claims through the cheapest direct channel (re-run tests, count rows,
+check git state, probe "identical" claims, byte-check encodings of deliverables).
+A completion notification without the brief's deliverable is a stalled agent, not
+a report. Delegation briefs must instruct agents to report spec/oracle
+disagreements rather than tune to match them.
+
+## Shell Choice On Windows
+
+On Windows, default to the active shell and use native syntax for that shell.
+Prefer PowerShell for ordinary file, text, and process operations unless the
+task specifically requires Bash, WSL, Git Bash, or another Unix-style toolchain.
+
+If a task is better suited to Bash on Windows, invoke Bash explicitly rather
+than mixing Bash syntax into a PowerShell command. Do not assume shell features,
+quoting rules, pipes, or multiline input forms transfer between shells.
+
+## Cross-Platform Text and JSON Encoding
+
+When generating JSON or other machine-readable text from PowerShell, write
+UTF-8 without a BOM. Windows PowerShell 5's `-Encoding UTF8` emits a BOM, so
+use an explicit BOM-free UTF-8 encoding when the output will be consumed by
+Node or another strict parser. Readers of generated or legacy JSON should
+tolerate and strip a leading UTF-8 BOM before parsing. Keep this producer and
+consumer behavior covered by a regression fixture or test.
+
+## Shell/Text Extraction
+
+When extracting or matching prose from external sources in shell commands, avoid
+embedding long exact strings with smart punctuation, non-ASCII typography, or
+copied whitespace directly into shell string literals. Prefer stable ASCII
+anchors, structural selectors, wildcard fragments, regexes, or source-loaded
+comparison strings that match the minimum needed text.
+
+Match multiline input syntax to the active shell. Do not use Bash heredocs in
+PowerShell; use PowerShell here-strings instead. More generally, verify that
+shell features and quoting syntax are valid for the current shell before
+running extraction or text-processing commands.
+
+## File edits
+
+Edit files with the harness's edit tool (`apply_patch` in Codex, `Edit` in
+Claude Code), which fails when the expected text is not found. If an edit must
+be scripted, assert the expected number of matches and fail on mismatch; never
+use a replacement that succeeds silently when nothing matched.

@@ -1,0 +1,82 @@
+{
+  "id": "coding-quality-v1-vs-v2",
+  "targetId": "anchor-word-spec",
+  "scenarioId": "plan-and-implement",
+  "guidanceDifferenceMode": "prior-version",
+  "referenceArm": {
+    "agent": "claude",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "guidance": [
+      {
+        "kind": "instruction-file",
+        "name": "CLAUDE",
+        "sourcePath": "subjects/anchor-word/instruction-file-claude.md"
+      },
+      {
+        "kind": "referenced-document",
+        "name": "PLANS",
+        "sourcePath": "subjects/anchor-word/plans.md",
+        "workspacePath": "PLANS.md",
+        "pointerText": "1. Get up to speed on the user's feature description by reading the agent documentation in the Agent Documentation section first, then inspecting only the relevant code paths it points to.\r\n2. Refine the spec with the user.\r\n3. Once the spec is agreed, create `docs/specs/[feature-name]-spec.md`, run the project-local `plan-review` skill on it, and ask the user to sign it off.\r\n4. After spec sign-off, create `docs/plans/[feature-name]-exec-plan.md` using `PLANS.md` as the source of truth, run `plan-review` on it, then ask the user to sign it off.\r\n5. Implement the feature after the execution plan is signed off."
+      },
+      {
+        "kind": "referenced-document",
+        "name": "coding-quality",
+        "sourcePath": "subjects/anchor-word/coding-quality-v1.md",
+        "workspacePath": "coding-quality.md",
+        "pointerText": "When writing or modifying code — implementation, design, refactoring, architecture, or review — first read the repository's design-guidance document `coding-quality.md`, if it exists. Treat that document as the repository's source of truth for local design preferences."
+      },
+      {
+        "kind": "skill",
+        "name": "code-quality-review",
+        "sourcePath": "../../skills/code-quality-review"
+      },
+      {
+        "kind": "skill",
+        "name": "testing-discipline",
+        "sourcePath": "../../skills/97/skills/testing-discipline"
+      }
+    ]
+  },
+  "candidateArm": {
+    "agent": "claude",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "guidance": [
+      {
+        "kind": "instruction-file",
+        "name": "CLAUDE",
+        "sourcePath": "subjects/anchor-word/instruction-file-claude.md"
+      },
+      {
+        "kind": "referenced-document",
+        "name": "PLANS",
+        "sourcePath": "subjects/anchor-word/plans.md",
+        "workspacePath": "PLANS.md",
+        "pointerText": "1. Get up to speed on the user's feature description by reading the agent documentation in the Agent Documentation section first, then inspecting only the relevant code paths it points to.\r\n2. Refine the spec with the user.\r\n3. Once the spec is agreed, create `docs/specs/[feature-name]-spec.md`, run the project-local `plan-review` skill on it, and ask the user to sign it off.\r\n4. After spec sign-off, create `docs/plans/[feature-name]-exec-plan.md` using `PLANS.md` as the source of truth, run `plan-review` on it, then ask the user to sign it off.\r\n5. Implement the feature after the execution plan is signed off."
+      },
+      {
+        "kind": "referenced-document",
+        "name": "coding-quality",
+        "sourcePath": "subjects/anchor-word/coding-quality-v2.md",
+        "workspacePath": "coding-quality.md",
+        "pointerText": "When writing or modifying code — implementation, design, refactoring, architecture, or review — first read the repository's design-guidance document `coding-quality.md`, if it exists. Treat that document as the repository's source of truth for local design preferences."
+      },
+      {
+        "kind": "skill",
+        "name": "code-quality-review",
+        "sourcePath": "../../skills/code-quality-review"
+      },
+      {
+        "kind": "skill",
+        "name": "testing-discipline",
+        "sourcePath": "../../skills/97/skills/testing-discipline"
+      }
+    ]
+  },
+  "reviewerRole": "user",
+  "decisionFraming": "improvement",
+  "repetitionCount": 1,
+  "notes": "Does the rewritten coding-quality document (v2) produce a better plan and C# implementation of the anchor-word tool than the current one (v1)? Both arms share the repository's CLAUDE.md, PLANS.md, and the code-quality-review and testing-discipline skills as fixed guidance; only the document behind the coding-quality pointer differs. The skill adds no rules of its own: its fresh-context reviewer checks the change against whichever coding-quality document the arm has, so it amplifies the difference rather than adding one. The plan is not frozen: each arm writes its own plan before coding, so the document influences planning as well as code, and a difference may come from either. The shared CLAUDE.md names other repository features (docs/agent-docs, doc-update, doc-alignment, plan-review) that are absent from the workspace; both arms meet the same gaps."
+}

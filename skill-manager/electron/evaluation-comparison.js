@@ -257,13 +257,23 @@ function blindingRisks(bundlePath, reference, candidate, assignment, fileSystem)
 }
 
 class ReviewBundle {
-  constructor({ rootPath, assignment, blinding, variedFactor, rubric, scenarioPrompt, risks = [] }) {
+  constructor({
+    rootPath,
+    assignment,
+    blinding,
+    variedFactor,
+    rubric,
+    scenarioPrompt,
+    reviewGuidance = "",
+    risks = [],
+  }) {
     this.rootPath = rootPath;
     this.assignment = assignment;
     this.blinding = blinding;
     this.variedFactor = variedFactor;
     this.rubric = Object.freeze([...rubric]);
     this.scenarioPrompt = scenarioPrompt;
+    this.reviewGuidance = reviewGuidance || "";
     this.risks = Object.freeze(risks.map((risk) => Object.freeze({ ...risk })));
     Object.freeze(this);
   }
@@ -287,8 +297,59 @@ class ReviewBundle {
       risks: this.risks.map((risk) => ({ ...risk })),
       variedFactor: this.variedFactor,
       rubric: [...this.rubric],
+      reviewGuidance: this.reviewGuidance,
     };
   }
+}
+
+// The brief is what a reviewer, human or model, reads first. It fixes the
+// order of reading so both outputs get the same attention, carries the
+// scenario's own review guidance, and spells the verdict out in A/B terms so
+// nobody has to know which role a label hides.
+function reviewBrief({ rubric, reviewGuidance }) {
+  const dimensions = rubric.map((name) => `- ${name}`).join("\n");
+  return [
+    "# Review brief",
+    "",
+    "Two independent outputs for the same task, labelled A and B. `task.md` holds the",
+    "task, `rubric.json` the dimensions, and `A/` and `B/` each hold one output's",
+    "produced files and its `evidence.json` (run status, check results, cost).",
+    "",
+    "Review both in the same order, so neither gets more attention than the other:",
+    "",
+    "1. the plan or design document, if the task asked for one;",
+    "2. the project layout: what the modules are and what each owns;",
+    "3. the two or three classes or modules at the centre of the work;",
+    "4. the tests: what they prove and what they would miss;",
+    "5. `evidence.json`: which checks passed and which failed.",
+    "",
+    "Assess every dimension for both outputs before deciding overall, and note where",
+    "in `A/` or `B/` the evidence for each assessment sits.",
+    "",
+    "## Dimensions",
+    "",
+    dimensions,
+    "",
+    "## Guidance for this scenario",
+    "",
+    reviewGuidance && reviewGuidance.trim() !== "" ? reviewGuidance.trim() : "None recorded.",
+    "",
+    "## Verdict",
+    "",
+    "The verdict is a JSON object, handed to `evaluate.js review <comparisonId> --input <file>`",
+    "or entered in the app:",
+    "",
+    "    {",
+    '      "dimensions": [{ "name": "...", "assessment": "...", "evidence": "..." }],',
+    '      "recommendation": "A" | "B" | "mixed" | "equivalent" | "inconclusive",',
+    '      "reasoning": "...",',
+    '      "uncertainty": "what the evidence could not settle"',
+    "    }",
+    "",
+    'Answer "inconclusive" rather than "equivalent" when the difference is smaller than',
+    "the variation to expect between two runs of the same configuration.",
+    "",
+  ].join("\n");
 }
 
 // The reviewer sees two unlabeled outputs, a rubric and the task. It never sees
@@ -300,6 +361,7 @@ function buildReviewBundle({
   variedFactor,
   rubric,
   scenarioPrompt,
+  reviewGuidance = "",
   seed = Date.now(),
   fileSystem = fs,
 }) {
@@ -342,6 +404,11 @@ function buildReviewBundle({
     `${JSON.stringify({ dimensions: rubric }, null, 2)}\n`,
     "utf8"
   );
+  fileSystem.writeFileSync(
+    path.join(outputPath, "review.md"),
+    reviewBrief({ rubric, reviewGuidance }),
+    "utf8"
+  );
   // The assignment is deliberately NOT written into the bundle. A model
   // reviewer is given the bundle root as its workspace, so a sealed mapping
   // stored there would be a file it could simply read. It lives in the
@@ -353,6 +420,7 @@ function buildReviewBundle({
     variedFactor,
     rubric,
     scenarioPrompt,
+    reviewGuidance,
     risks: blindingRisks(outputPath, reference, candidate, assignment, fileSystem),
   });
 }

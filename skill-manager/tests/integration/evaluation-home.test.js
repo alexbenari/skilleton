@@ -36,6 +36,65 @@ test("create copies credentials and leaves global skills and instruction files b
   }
 });
 
+test("with a long-lived token in the environment, a Claude home copies no credentials file and says it authenticates from the environment", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const source = makeUserHome(path.join(tempRoot, "user-claude"), ".credentials.json");
+    const homePath = path.join(tempRoot, "isolated", "claude");
+    const env = { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-placeholder" };
+
+    const home = new IsolatedAgentHome({ env }).create({ agent: "claude", homePath, sourcePath: source });
+
+    assert.equal(home.isolation, "isolated");
+    assert.equal(home.credentialSource, "environment-token");
+    assert.deepEqual(home.copiedFilenames, []);
+    assert.equal(fs.existsSync(path.join(homePath, ".credentials.json")), false);
+    assert.equal(fs.existsSync(homePath), true);
+    assert.equal(home.toJSON().credentialSource, "environment-token");
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("a token in the environment also makes a missing credentials file a non-event", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const source = path.join(tempRoot, "user-claude");
+    writeFile(path.join(source, "CLAUDE.md"), "# Personal instructions\n");
+    const env = { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-placeholder" };
+
+    const home = new IsolatedAgentHome({ env }).create({
+      agent: "claude",
+      homePath: path.join(tempRoot, "isolated", "claude"),
+      sourcePath: source,
+    });
+
+    assert.equal(home.isolation, "isolated");
+    assert.equal(home.credentialSource, "environment-token");
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("without a token in the environment the copied credentials file is the credential source, and a blank token does not count", () => {
+  const tempRoot = makeTempRoot();
+  try {
+    const source = makeUserHome(path.join(tempRoot, "user-claude"), ".credentials.json");
+    const homePath = path.join(tempRoot, "isolated", "claude");
+
+    const home = new IsolatedAgentHome({ env: { CLAUDE_CODE_OAUTH_TOKEN: "   " } }).create({
+      agent: "claude",
+      homePath,
+      sourcePath: source,
+    });
+
+    assert.equal(home.credentialSource, "copied-file");
+    assert.deepEqual(home.copiedFilenames, [".credentials.json"]);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("a Codex home carries auth.json and config.toml but not AGENTS.md or global skills", () => {
   const tempRoot = makeTempRoot();
   try {

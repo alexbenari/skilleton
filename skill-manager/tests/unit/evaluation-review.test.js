@@ -11,6 +11,7 @@ const {
   readUserReviewFile,
   recordUserReview,
   relabelRecommendation,
+  reviewPrompt,
 } = require("../../electron/evaluation-review");
 const { ReviewBundle, assignLabels } = require("../../electron/evaluation-comparison");
 const { AgentRunner } = require("../../electron/evaluation-agent-runner");
@@ -234,6 +235,36 @@ test("when the reference was shown as A, a verdict for A stays reference-better"
   assert.equal(assignment.labelFor("reference"), "A");
   assert.equal(relabelRecommendation("reference-better", assignment), "reference-better");
   assert.equal(relabelRecommendation("candidate-better", assignment), "candidate-better");
+});
+
+test("a verdict spoken as a label is recorded against the role shown under that label", () => {
+  const candidateFirst = assignLabels(CANDIDATE_FIRST_SEED);
+  const referenceFirst = assignLabels(REFERENCE_FIRST_SEED);
+
+  assert.equal(relabelRecommendation("A", candidateFirst), "candidate-better");
+  assert.equal(relabelRecommendation("B", candidateFirst), "reference-better");
+  assert.equal(relabelRecommendation("A", referenceFirst), "reference-better");
+  assert.equal(relabelRecommendation("B", referenceFirst), "candidate-better");
+});
+
+test("a user verdict of B is stored in the role vocabulary, never as the label", () => {
+  const record = recordUserReview({
+    bundle: reviewBundle({ seed: CANDIDATE_FIRST_SEED }),
+    input: { dimensions: dimensions(), recommendation: "B", reasoning: "B's tests name their cases." },
+  });
+
+  assert.equal(record.recommendation, "reference-better");
+});
+
+test("the review prompt sends the model to the brief and carries the scenario's guidance when there is one", () => {
+  const guidance = "Judge the tests by what they would catch, not by how many there are.";
+
+  const withGuidance = reviewPrompt({ rubric: RUBRIC, blinding: "full", variedFactor: "guidance", reviewGuidance: guidance });
+  const without = reviewPrompt({ rubric: RUBRIC, blinding: "full", variedFactor: "guidance" });
+
+  assert.match(withGuidance, /Read review\.md for how to review/);
+  assert.ok(withGuidance.includes(guidance));
+  assert.ok(!without.includes("The scenario's own guidance"));
 });
 
 test("a verdict that picks neither side passes through the label mapping unchanged", () => {

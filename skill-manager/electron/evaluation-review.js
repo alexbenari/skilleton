@@ -111,17 +111,21 @@ function extractJsonBlock(text) {
   return null;
 }
 
-function reviewPrompt({ rubric, blinding, variedFactor }) {
+function reviewPrompt({ rubric, blinding, variedFactor, reviewGuidance = "" }) {
   const dimensions = rubric.map((name) => `- ${name}`).join("\n");
   const blindingNote =
     blinding === "partial"
       ? "The two outputs may carry incidental signs of how they were produced. Judge the " +
         "work itself and ignore any such signs."
       : "You are not told which output came from which configuration, and you must not guess.";
+  const guidance =
+    reviewGuidance && reviewGuidance.trim() !== ""
+      ? ["The scenario's own guidance for this review:", reviewGuidance.trim(), ""]
+      : [];
   return [
     "You are reviewing two independent outputs for the same task, labelled A and B.",
-    "Read task.md for the task, rubric.json for the dimensions, and each of A/ and B/ for",
-    "that output's produced files and evidence.json.",
+    "Read review.md for how to review, task.md for the task, rubric.json for the dimensions,",
+    "and each of A/ and B/ for that output's produced files and evidence.json.",
     "",
     blindingNote,
     "",
@@ -131,6 +135,7 @@ function reviewPrompt({ rubric, blinding, variedFactor }) {
     "Judge the work on its own merits. Do not reward an output for following any particular",
     "checklist or style guide; judge whether the result is correct, clear and well built.",
     "",
+    ...guidance,
     "Reply with exactly one fenced json block and no other text:",
     "```json",
     "{",
@@ -149,15 +154,24 @@ function reviewPrompt({ rubric, blinding, variedFactor }) {
   ].join("\n");
 }
 
+// A reviewer thinks in labels. "A" and "B" are accepted as verdicts and mean
+// the output shown under that label; the stored vocabulary is reached below.
+const LABEL_RECOMMENDATIONS = { A: "reference-better", B: "candidate-better" };
+
+function recommendationFromLabel(recommendation) {
+  return LABEL_RECOMMENDATIONS[recommendation] || recommendation;
+}
+
 // Labels are re-attached after the review returns, so the mapping from A/B to
 // reference/candidate never reaches the reviewer.
 function relabelRecommendation(recommendation, assignment) {
-  if (recommendation === "reference-better" || recommendation === "candidate-better") {
-    const label = recommendation === "reference-better" ? "A" : "B";
+  const spoken = recommendationFromLabel(recommendation);
+  if (spoken === "reference-better" || spoken === "candidate-better") {
+    const label = spoken === "reference-better" ? "A" : "B";
     const role = assignment.roleFor(label);
     return role === "reference" ? "reference-better" : "candidate-better";
   }
-  return recommendation;
+  return spoken;
 }
 
 class ModelReviewer {
@@ -189,6 +203,7 @@ class ModelReviewer {
         rubric: bundle.rubric,
         blinding: bundle.blinding,
         variedFactor: bundle.variedFactor,
+        reviewGuidance: bundle.reviewGuidance || "",
       }),
       timeoutMs,
       transcriptPath,
